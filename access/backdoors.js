@@ -1,6 +1,5 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    // 1. Alle Server finden
     let servers = ["home"];
     for (let i = 0; i < servers.length; i++) {
         let scanResults = ns.scan(servers[i]);
@@ -9,19 +8,19 @@ export async function main(ns) {
         }
     }
 
-    ns.tprint("Starte Backdoor-Run...");
+    ns.tprint("Starting backdoor run...");
 
     for (let target of servers) {
-        // Überspringe home und bereits ge-backdoor-te oder unerreichbare Server
+        // Skip home, servers that are already done, or those we haven't rooted yet
         let info = ns.getServer(target);
         if (target === "home" || info.backdoorInstalled || !info.hasAdminRights) continue;
         
-        // Prüfen ob Hacking-Level reicht
+        // Make sure our hacking level is high enough
         if (ns.getHackingLevel() < info.requiredHackingSkill) continue;
 
-        ns.tprint("Versuche Backdoor auf: " + target);
+        ns.tprint("Attempting backdoor on: " + target);
 
-        // Pfad finden (BFS)
+        // Find the connection path using BFS
         let paths = { "home": null };
         let queue = ["home"];
         while (queue.length > 0) {
@@ -34,7 +33,7 @@ export async function main(ns) {
             }
         }
 
-        // Pfad-Kette bauen
+        // Reconstruct the path to the target
         let path = [];
         let curr = target;
         while (curr !== null) {
@@ -42,21 +41,21 @@ export async function main(ns) {
             curr = paths[curr];
         }
 
-        // Hinreisen
+        // Navigate through the network
         for (let i = 1; i < path.length; i++) {
             ns.singularity.connect(path[i]);
         }
 
-        // Backdoor installieren
+        // Try to install the backdoor
         try {
             await ns.singularity.installBackdoor();
-            ns.tprint("Erfolg: " + target);
+            ns.tprint("Success: " + target);
         } catch (e) {
-            ns.tprint("Fehler bei: " + target);
+            ns.tprint("Failed at: " + target);
         }
 
-        // Zurück nach Hause
+        // Head back to home base
         ns.singularity.connect("home");
     }
-    ns.tprint("Backdoor-Run abgeschlossen.");
+    ns.tprint("Backdoor run finished.");
 }
