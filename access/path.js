@@ -2,14 +2,14 @@
 export async function main(ns) {
     let target = ns.args[0];
     if (!target) {
-        ns.tprint("Bitte Ziel angeben: run path.js [server]");
+        ns.tprint("Please specify a target: run path.js [server]");
         return;
     }
 
     let paths = { "home": null };
     let queue = ["home"];
 
-    // BFS Suche
+    // Standard BFS search
     while (queue.length > 0) {
         let node = queue.shift();
         let nodes = ns.scan(node);
@@ -21,21 +21,21 @@ export async function main(ns) {
         }
     }
 
-    // Pfad rückwärts zusammenbauen
     let path = [];
     let curr = target;
     
     if (!paths[curr]) {
-        ns.tprint("Server nicht gefunden!");
+        ns.tprint("Server not found!");
         return;
     }
 
+    // Reconstruct the path from target to home
     while (curr !== null) {
         path.unshift(curr);
         curr = paths[curr];
     }
 
-    // "home" entfernen, da wir dort starten
+    // Remove "home" since we're already there
     path.shift();
-    ns.tprint("Connect-String: connect " + path.join("; connect "));
+    ns.tprint("Connect string: connect " + path.join("; connect "));
 }
