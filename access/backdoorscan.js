@@ -8,12 +8,12 @@ export async function main(ns) {
     }
   }
 
-  ns.tprint("--- VERFÜGBARE BACKDOORS ---");
+  ns.tprint("--- AVAILABLE BACKDOORS ---");
   for (let s of servers) {
     let info = ns.getServer(s);
     if (s !== "home" && !info.backdoorInstalled && info.hasAdminRights && ns.getHackingLevel() >= info.requiredHackingSkill) {
-      // Dieser Teil erzeugt einen klickbaren Pfad im Terminal!
-      ns.tprint(`${s} (Level ${info.requiredHackingSkill}) - Backdoor MÖGLICH!`);
+      // Create a clickable path in the terminal for easy access
+      ns.tprint(`${s} (Level ${info.requiredHackingSkill}) - Backdoor READY!`);
     }
   }
 }
