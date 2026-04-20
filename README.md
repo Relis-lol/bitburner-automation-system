@@ -6,13 +6,13 @@ Automation system built within the programming game Bitburner.
 
 ## Overview
 
-This project contains a set of automation scripts that evolved from simple self-hacking scripts into a multi-server orchestration system.
+This project contains a set of automation scripts that evolved from simple self-hacking scripts into a multi-server orchestration system with multiple target-allocation strategies.
 
 The system is able to:
 - automatically discover and target profitable servers
 - execute coordinated hack / grow / weaken cycles
 - distribute scripts across owned servers
-- purchase and utilize additional servers
+- purchase and upgrade servers
 - manage access via backdoors
 - generate connection paths for navigation
 
@@ -21,43 +21,65 @@ The system is able to:
 ## Architecture
 
 ### Orchestrators
-Central control scripts managing all operations.
+Central control scripts managing automated operations with different strategies.
 
 - **GM2.js**  
-  Distributed orchestration approach.  
-  Servers that still hold money are instructed to hack themselves, while owned servers and servers without money are redirected toward the richest external target.  
-  This makes GM2 more practical during earlier progression phases when self-farming available servers is still valuable.
+  Hybrid orchestration strategy.  
+  - Home and purchased servers focus on the best available target  
+  - Rooted servers with money can attack themselves  
+  - Servers without useful money are redirected to the best target  
+  This makes GM2 efficient during early and mid progression phases.
 
 - **godmode.js**  
-  Full concentration strategy.  
-  Uses all available hacked servers and owned resources to attack the single richest target.  
-  This becomes stronger later on, but performs poorly right after installing augmentations because the network starts with no money and cannot benefit from self-farming.
+  Concentrated orchestration strategy.  
+  - All available rooted servers attack a single best target  
+  - Includes automated server purchasing and upgrades  
+  Strong in later stages, but inefficient after augmentation resets due to lack of initial money.
 
 ---
 
 ### Workers
 Execution layer used by the orchestrators.
 
-- **hack.js** – executes hacking operations  
-- **grow.js** – increases server money  
-- **weaken.js** – reduces security level  
+- **hack.js** – performs hack operations  
+- **grow.js** – performs grow operations  
+- **weaken.js** – performs weaken operations  
 
 ---
 
 ### Access Tools
-Scripts for navigation and access management.
+Scripts for navigation and access progression.
 
-- **backdoors.js** – installs backdoors on all accessible servers  
-- **backdoorscan.js** – lists servers without backdoors  
-- **path.js** – generates connection paths to target servers  
+- **backdoors.js** – automatically connects and installs backdoors (requires Singularity access)  
+- **backdoorscan.js** – lists servers where backdoors can be installed  
+- **path.js** – generates copy-ready connection paths to target servers  
 
 ---
 
 ### Legacy
-Older scripts showing project evolution.
+Older scripts documenting project evolution.
 
-- **basic_hack.js** – first simple self-targeting script  
-- **script_update.js** – early script distribution helper  
+- **basic_hack.js** – first simple self-targeting hacking script  
+- **script_update.js** – early script deployment system across rooted servers  
+
+---
+
+## Script RAM Usage
+
+RAM usage is a core constraint in Bitburner and directly impacts execution scaling.
+
+| Script              | RAM Usage |
+|--------------------|----------|
+| GM2.js             | 11.2 GB  |
+| godmode.js         | 11.2 GB  |
+| backdoors.js       | 67.85 GB |
+| backdoorscan.js    | 3.85 GB  |
+| basic_hack.js      | 2.45 GB  |
+| script_update.js   | 4.4 GB   |
+| path.js            | 1.8 GB   |
+| hack.js            | 1.75 GB  |
+| grow.js            | 1.75 GB  |
+| weaken.js          | 1.75 GB  |
 
 ---
 
@@ -65,16 +87,17 @@ Older scripts showing project evolution.
 
 This project demonstrates:
 
-- automation logic
-- distributed execution across multiple nodes
-- resource-based decision making
-- progression from simple scripts to orchestrated systems
+- automation logic  
+- distributed execution across multiple nodes  
+- resource-based decision making  
+- target prioritization strategies  
+- system evolution from simple scripts to orchestrated workflows  
 
 While built inside a game environment, the concepts reflect real-world patterns such as:
 
-- task orchestration
-- workload distribution
-- system automation
+- task orchestration  
+- workload distribution  
+- automation systems  
 
 ---
 
