@@ -1,10 +1,10 @@
 /** @param {NS} ns **/
 export async function main(ns) {
     const prefix = "serv-";
-    const reserveLimit = 1000000; // 1 Million Reserve
+    const reserveLimit = 1000000; // Keep 1 million as a safety buffer
 
     while (true) {
-        // 1. NETZWERK-SCAN
+        // Network crawl to find all available hosts
         let servers = ["home"];
         for (let i = 0; i < servers.length; i++) {
             let scanResults = ns.scan(servers[i]);
@@ -13,7 +13,7 @@ export async function main(ns) {
             }
         }
 
-        // 2. BESTES ZIEL FINDEN
+        // Identify the most profitable target we can actually hack
         let bestTarget = "n00dles";
         let maxMoney = 0;
         for (let s of servers) {
@@ -25,7 +25,7 @@ export async function main(ns) {
             }
         }
 
-        // 3. SERVER KAUFEN & UPGRADEN (Ohne Singularity, spart RAM)
+        // Handle purchasing and upgrading servers (RAM-efficient method)
         let money = ns.getServerMoneyAvailable("home");
         if (money > reserveLimit) {
             let spendable = money - reserveLimit;
@@ -52,7 +52,7 @@ export async function main(ns) {
             }
         }
 
-        // 4. AUSFÜHRUNG & VERTEILUNG
+        // Auto-crack and deploy payloads
         for (let host of servers) {
             if (!ns.hasRootAccess(host)) {
                 if (ns.fileExists("BruteSSH.exe")) ns.brutessh(host);
@@ -69,7 +69,7 @@ export async function main(ns) {
             await ns.scp(["hack.js", "grow.js", "weaken.js"], host, "home");
 
             let freeRam = ns.getServerMaxRam(host) - ns.getServerUsedRam(host);
-            if (host === "home") freeRam -= 20; 
+            if (host === "home") freeRam -= 20; // Reserve RAM on home for other scripts
 
             let threads = Math.floor(freeRam / 1.75);
             if (threads > 0 && ns.getServerRequiredHackingLevel(target) <= ns.getHackingLevel()) {
