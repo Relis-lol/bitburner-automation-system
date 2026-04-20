@@ -1,10 +1,10 @@
 /** @param {NS} ns */
 export async function main(ns) {
     const prefix = "serv-"; 
-    const reserveLimit = 2500000; // Die 2,5-Millionen-Sperre
+    const reserveLimit = 2500000; // Keep 2.5 million in the bank as a safety buffer
 
     while (true) {
-        // 1. Netzwerk-Scan & Root-Zugriff
+        // Map the network and gain root access where possible
         let servers = ["home"];
         for (let i = 0; i < servers.length; i++) {
             let scanResults = ns.scan(servers[i]);
@@ -13,7 +13,7 @@ export async function main(ns) {
             }
         }
 
-        // 2. Bestes Ziel finden
+        // Find the best target we can comfortably hack (Hacking Level / 2)
         let bestTarget = "n00dles";
         let maxMoney = 0;
         for (let s of servers) {
@@ -25,11 +25,10 @@ export async function main(ns) {
             }
         }
 
-        // 3. AUTO-SERVER-KAUF & UPGRADE (mit Sperre)
+        // Manage server purchases and upgrades within budget
         let myServers = ns.getPurchasedServers();
         let money = ns.getServerMoneyAvailable("home");
 
-        // Wir prüfen: Haben wir mehr als die Reserve?
         if (money > reserveLimit) {
             let spendableMoney = money - reserveLimit;
 
@@ -38,7 +37,7 @@ export async function main(ns) {
                 if (spendableMoney > cost) {
                     let name = prefix + myServers.length;
                     ns.purchaseServer(name, 8);
-                    ns.tprint("Gekauft: " + name);
+                    ns.tprint("Purchased: " + name);
                 }
             } else {
                 for (let s of myServers) {
@@ -50,7 +49,7 @@ export async function main(ns) {
                             ns.killall(s);
                             ns.deleteServer(s);
                             ns.purchaseServer(s, nextRam);
-                            ns.tprint(`Upgrade: ${s} auf ${nextRam}GB`);
+                            ns.tprint(`Upgraded: ${s} to ${nextRam}GB`);
                             break; 
                         }
                     }
@@ -58,7 +57,7 @@ export async function main(ns) {
             }
         }
 
-        // 4. Skripte verteilen und hacken
+        // Crack servers and deploy hacking payload
         for (let host of servers) {
             if (!ns.hasRootAccess(host)) {
                 if (ns.fileExists("BruteSSH.exe")) ns.brutessh(host);
@@ -72,7 +71,7 @@ export async function main(ns) {
             if (ns.hasRootAccess(host)) {
                 await ns.scp(["hack.js", "grow.js", "weaken.js"], host, "home");
                 let freeRam = ns.getServerMaxRam(host) - ns.getServerUsedRam(host);
-                if (host === "home") freeRam -= 20; 
+                if (host === "home") freeRam -= 20; // Keep RAM free on home for UI and other scripts
 
                 let threads = Math.floor(freeRam / 1.75);
                 if (threads > 0) {
