@@ -1,9 +1,8 @@
 /** @param {NS} ns */
 export async function main(ns) {
     const scriptName = "basic_hack.js";
-    const target = "iron-gym"; // Das Ziel, das alle hacken sollen
+    const target = "iron-gym"; // Global target for all servers
 
-    // 1. Alle Server im Netzwerk finden
     let servers = ["home"];
     for (let i = 0; i < servers.length; i++) {
         let scanResults = ns.scan(servers[i]);
@@ -12,17 +11,14 @@ export async function main(ns) {
         }
     }
 
-    // 2. Skript auf jedem Server aktualisieren
     for (let server of servers) {
         if (server === "home" || !ns.hasRootAccess(server)) continue;
 
-        // Altes Skript stoppen
+        // Stop any running processes and update the script
         ns.killall(server);
-
-        // Neue Version hinkopieren
         await ns.scp(scriptName, server);
 
-        // Berechnen, wie viele Threads draufpassen
+        // Calculate max threads based on server RAM
         let ramAvailable = ns.getServerMaxRam(server);
         let scriptCost = ns.getScriptRam(scriptName);
         let threads = Math.floor(ramAvailable / scriptCost);
