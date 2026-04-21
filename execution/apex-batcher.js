@@ -4,8 +4,8 @@ export async function main(ns) {
     ns.ui.openTail();
     ns.ui.resizeTail(600, 400);
 
-    const HACK_PROFIT = 0.05; // Klaut exakt 5%
-    const HOME_RESERVE = 64;  // RAM Puffer auf Home
+    const HACK_PROFIT = 0.05; // Steals exactly 5%
+    const HOME_RESERVE = 20;  // RAM buffer on Home (set to 20GB)
     const scriptRAM = 1.75;
 
     while (true) {
@@ -18,7 +18,7 @@ export async function main(ns) {
             }
         }
 
-        // 2. TARGET (Bester erreichbarer Server)
+        // 2. TARGET (Best reachable server)
         let target = "n00dles";
         let maxMoney = 0;
         for (let s of servers) {
@@ -37,7 +37,7 @@ export async function main(ns) {
 
         // 3. THREAD CALCULATION
         let hThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(target, tMaxMoney * HACK_PROFIT)));
-        let gThreads = Math.ceil(ns.growthAnalyze(target, 1.06)); // 6% Grow um 5% Hack + Puffer auszugleichen
+        let gThreads = Math.ceil(ns.growthAnalyze(target, 1.06)); // 6% Grow to offset 5% Hack + buffer
         let wThreads = Math.ceil((hThreads * 0.002 + gThreads * 0.004) / 0.05);
         
         let batchRam = (hThreads + gThreads + wThreads) * scriptRAM;
@@ -51,7 +51,7 @@ export async function main(ns) {
 
             let availableThreads = Math.floor(freeRam / scriptRAM);
 
-            // EMERGENCY RECOVERY (Falls Server "krank" ist)
+            // EMERGENCY RECOVERY (If server is "unhealthy")
             if (curSec > minSec + 0.1) {
                 ns.exec("weaken.js", host, availableThreads, target);
             } else if (curMoney < tMaxMoney * 0.98) {
