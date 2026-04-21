@@ -98,11 +98,11 @@ Older or replaced scripts kept for reference.
 | Script              | RAM Usage |
 |--------------------|----------|
 | GM3.js             | 12.2 GB  |
-| infra-manager.js   | 9.4 GB   |
+| infra-manager.js   | 9.5 GB   |
 | apex-batcher.js    | 5.8 GB   |
 | GM2.js             | 11.2 GB  |
 | godmode.js         | 11.2 GB  |
-| stats.js           | 4.15 GB  |
+| stats.js           | 5.8 GB  |
 | script_update.js   | 4.4 GB   |
 | backdoorscan.js    | 3.85 GB  |
 | basic_hack.js      | 2.45 GB  |
