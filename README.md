@@ -6,14 +6,20 @@ Automation system built within the programming game Bitburner.
 
 ## Overview
 
-This project evolved from simple self-hacking scripts into a modular automation system with separated responsibilities:
+This project contains a set of automation scripts that evolved from simple self-hacking scripts into a modular system with separated responsibilities:
 
 - infrastructure management
-- target orchestration
-- distributed execution
+- orchestration
+- execution
 - monitoring
 
-The system dynamically scans the network, gains root access, distributes scripts, manages purchased servers, and executes optimized hacking strategies.
+The system is able to:
+- automatically discover and target profitable servers
+- execute coordinated hack / grow / weaken cycles
+- distribute scripts across owned servers
+- purchase and upgrade servers
+- manage access via backdoors
+- generate connection paths for navigation
 
 ---
 
@@ -21,60 +27,34 @@ The system dynamically scans the network, gains root access, distributes scripts
 
 ### Infrastructure
 
-Core system responsible for preparing and maintaining the network.
-
 - **infra-manager.js**  
-  Handles:
-  - network scanning  
-  - automatic rooting (port opening + nuke)  
-  - script distribution across servers  
-  - purchasing and upgrading servers  
-
-  Acts as the foundation layer of the system.
+  Handles network scanning, rooting, script distribution, and server purchasing/upgrading.
 
 ---
 
-### Orchestrators
-
-High-level decision logic for target selection and execution strategy.
-
-- **GM2.js**  
-  Hybrid orchestration strategy:
-  - home + purchased servers attack main target  
-  - rooted servers with money can self-farm  
-  - fallback to main target for empty servers  
-
-  Simple and effective for early/mid-game.
+### Orchestration
 
 - **GM3.js**  
-  Improved orchestration system:
-  - limits over-hacking by calculating required hack threads  
-  - caps extraction (~50% of max money)  
-  - uses leftover threads for weaken to stabilize targets  
-  - includes target change logging  
-
-  Designed to reduce resource overcommit and improve stability.
+  Improved orchestration system designed to avoid over-hacking and resource waste.  
+  - limits extraction (~50%)  
+  - stabilizes targets using weaken fallback  
+  - reduces aggressive resource usage  
+  - logs target switching  
 
 ---
 
-### Execution / Batching
-
-Optimized hacking logic with controlled resource usage.
+### Execution
 
 - **apex-batcher.js**  
-  Balanced batch system:
-  - fixed profit target (~5% per cycle)  
-  - calculates required hack/grow/weaken threads  
-  - adapts to server size (full batch vs small contribution)  
-  - includes emergency recovery (security / low money)  
-
-  This is the most efficient execution layer in the project.
+  Efficient batch-based hacking system.  
+  - fixed profit extraction (~5%)  
+  - calculated hack/grow/weaken ratios  
+  - adapts to server size  
+  - includes recovery logic  
 
 ---
 
 ### Workers
-
-Low-level execution scripts.
 
 - **hack.js** – performs hack operations  
 - **grow.js** – performs grow operations  
@@ -84,8 +64,6 @@ Low-level execution scripts.
 
 ### Access Tools
 
-Scripts for navigation and progression.
-
 - **backdoors.js** – installs backdoors automatically (requires Singularity)  
 - **backdoorscan.js** – lists available backdoor targets  
 - **path.js** – generates connection paths  
@@ -94,21 +72,21 @@ Scripts for navigation and progression.
 
 ### Monitoring
 
-Visibility into system state.
-
-- **stats.js**  
-  Live overview:
-  - rooted servers  
-  - purchased infrastructure  
-  - RAM usage  
-  - server money states  
-  - hacking progress  
+- **stats.js** – live system overview (RAM, servers, money, progress)
 
 ---
 
 ### Legacy
 
-Early scripts kept for reference.
+Older or replaced scripts kept for reference.
+
+- **GM2.js**  
+  Earlier orchestration system.  
+  Caused excessive resource usage and over-drained targets due to lack of load control.
+
+- **godmode.js**  
+  Fully centralized brute-force strategy.  
+  Inefficient after resets and unable to stabilize targets properly.
 
 - **basic_hack.js** – initial self-targeting script  
 - **script_update.js** – early deployment system  
@@ -116,8 +94,6 @@ Early scripts kept for reference.
 ---
 
 ## Script RAM Usage
-
-RAM usage directly affects scaling and execution capacity.
 
 | Script              | RAM Usage |
 |--------------------|----------|
@@ -145,13 +121,11 @@ This project demonstrates:
 - distributed execution across multiple nodes  
 - resource-aware scheduling  
 - infrastructure automation  
-- system evolution from simple scripts to modular architecture  
+- system evolution and problem solving  
 - separation of concerns (infra / orchestration / execution / monitoring)  
-
-While built in a game environment, the structure reflects real-world backend and infrastructure patterns.
 
 ---
 
 ## Status
 
-Active side project used to explore automation, orchestration, and system design concepts.
+Active side project focused on automation and system design concepts.
