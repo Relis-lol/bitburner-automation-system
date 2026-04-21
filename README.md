@@ -56,6 +56,13 @@ Scripts for navigation and access progression.
 
 ---
 
+### Monitoring
+Scripts for visibility into current network resources and hacking progress.
+
+- **stats.js** – live status window showing rooted servers, purchased infrastructure, RAM usage, available money, and overall hacking progress
+
+---
+
 ### Legacy
 Older scripts documenting project evolution.
 
@@ -80,6 +87,7 @@ RAM usage is a core constraint in Bitburner and directly impacts execution scali
 | hack.js            | 1.75 GB  |
 | grow.js            | 1.75 GB  |
 | weaken.js          | 1.75 GB  |
+| stats.js          | 4.15 GB  |
 
 ---
 
