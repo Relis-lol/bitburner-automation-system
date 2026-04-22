@@ -110,7 +110,7 @@ Older or replaced scripts kept for reference.
 | GM3.js             | 12.2 GB  |
 | infra-manager.js   | 9.5 GB   |
 | apex-batcher.js    | 5.8 GB   |
-| titan-batcher.js   | 5.8 GB   |
+| titan.js           | 4.65 GB   |
 | GM2.js             | 11.2 GB  |
 | godmode.js         | 11.2 GB  |
 | stats.js           | 4.15 GB  |
