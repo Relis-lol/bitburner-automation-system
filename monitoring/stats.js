@@ -4,8 +4,13 @@ export async function main(ns) {
     ns.ui.openTail();
     ns.ui.resizeTail(700, 500);
 
+    const UPDATE_MS = 10000;
+    const HISTORY_LENGTH = 6; // 60s rolling average
+    const MAX_PURCHASED_SERVERS = 25;
+
     let lastMoney = ns.getServerMoneyAvailable("home");
     let lastTime = Date.now();
+    let incomeHistory = [];
 
     while (true) {
         // 1. SCAN ALL SERVERS
@@ -34,14 +39,21 @@ export async function main(ns) {
 
             if (serverInfo.purchasedByPlayer && s !== "home") {
                 purchasedServers.push(s);
-            } 
-            else if (ns.hasRootAccess(s) && ns.getServerMaxMoney(s) > 0 && !serverInfo.purchasedByPlayer) {
+            } else if (ns.hasRootAccess(s) && ns.getServerMaxMoney(s) > 0 && !serverInfo.purchasedByPlayer) {
                 hackedServers.push(s);
             }
         }
 
         // SORTING
-        purchasedServers.sort((a, b) => ns.getServerMaxRam(b) - ns.getServerMaxRam(a));
+        purchasedServers.sort((a, b) => {
+            const ramDiff = ns.getServerMaxRam(b) - ns.getServerMaxRam(a);
+            if (ramDiff !== 0) return ramDiff;
+
+            const aNum = parseInt(a.replace("serv-", ""), 10);
+            const bNum = parseInt(b.replace("serv-", ""), 10);
+            return aNum - bNum;
+        });
+
         hackedServers.sort((a, b) => ns.getServerMaxMoney(b) - ns.getServerMaxMoney(a));
 
         // INCOME CALC
@@ -51,23 +63,26 @@ export async function main(ns) {
         let deltaMoney = currentMoney - lastMoney;
         let deltaTime = (currentTime - lastTime) / 1000;
 
-        let incomePerSec = 0;
-        let incomePerMin = 0;
-        let incomePerHour = 0;
-        let incomePerDay = 0;
+        let incomePerSecInstant = 0;
 
         if (Number.isFinite(deltaMoney) && Number.isFinite(deltaTime) && deltaTime > 0) {
-            incomePerSec = deltaMoney / deltaTime;
-            incomePerMin = incomePerSec * 60;
-            incomePerHour = incomePerSec * 3600;
-            incomePerDay = incomePerSec * 86400;
+            incomePerSecInstant = deltaMoney / deltaTime;
         }
 
-        // optional: negative spikes durch Käufe etc. nicht anzeigen
-        incomePerSec = Math.max(0, incomePerSec);
-        incomePerMin = Math.max(0, incomePerMin);
-        incomePerHour = Math.max(0, incomePerHour);
-        incomePerDay = Math.max(0, incomePerDay);
+        incomePerSecInstant = Math.max(0, incomePerSecInstant);
+
+        incomeHistory.push(incomePerSecInstant);
+        if (incomeHistory.length > HISTORY_LENGTH) {
+            incomeHistory.shift();
+        }
+
+        let incomePerSec = incomeHistory.length > 0
+            ? incomeHistory.reduce((a, b) => a + b, 0) / incomeHistory.length
+            : 0;
+
+        let incomePerMin = incomePerSec * 60;
+        let incomePerHour = incomePerSec * 3600;
+        let incomePerDay = incomePerSec * 86400;
 
         lastMoney = currentMoney;
         lastTime = currentTime;
@@ -76,22 +91,33 @@ export async function main(ns) {
         let totalFreeRam = totalMaxRam - totalUsedRam;
         let usagePercent = totalMaxRam > 0 ? (totalUsedRam / totalMaxRam) * 100 : 0;
 
+        // PURCHASED SUMMARY
+        let highestPurchased = purchasedServers.length > 0 ? purchasedServers[0] : null;
+        let lowestPurchased = purchasedServers.length > 0 ? purchasedServers[purchasedServers.length - 1] : null;
+
         // UI
         ns.clearLog();
-        ns.print(`[${new Date().toLocaleTimeString()}] UPDATE EVERY 30S`);
 
-        // PURCHASED
-        ns.print("\n=== PURCHASED SERVERS ===");
-        ns.print(`${"NAME".padEnd(18)} | ${"USED RAM".padStart(10)} / ${"MAX RAM"}`);
-        ns.print("-".repeat(50));
-        for (let s of purchasedServers) {
-            let ram = ns.getServerMaxRam(s);
-            let used = ns.getServerUsedRam(s);
-            ns.print(`${s.padEnd(18)} | ${ns.formatRam(used).padStart(10)} / ${ns.formatRam(ram)}`);
+        ns.print(`=== PURCHASED SERVERS (${purchasedServers.length}/${MAX_PURCHASED_SERVERS}) ===`);
+
+        if (highestPurchased) {
+            const max = ns.getServerMaxRam(highestPurchased);
+            const used = ns.getServerUsedRam(highestPurchased);
+            ns.print(`Highest RAM : ${highestPurchased} | ${ns.formatRam(used)} / ${ns.formatRam(max)}`);
+        } else {
+            ns.print("Highest RAM : -");
         }
 
-        // HACKED
-        ns.print("\n=== HACKED SERVERS ===");
+        if (lowestPurchased) {
+            const max = ns.getServerMaxRam(lowestPurchased);
+            const used = ns.getServerUsedRam(lowestPurchased);
+            ns.print(`Lowest RAM  : ${lowestPurchased} | ${ns.formatRam(used)} / ${ns.formatRam(max)}`);
+        } else {
+            ns.print("Lowest RAM  : -");
+        }
+
+        // HACKED SERVERS
+        ns.print(`\n=== HACKED SERVERS (${hackedServers.length}/${allServers.length - 1}) ===`);
         ns.print(`${"NAME".padEnd(18)} | ${"RAM".padStart(8)} | ${"MONEY / MAX MONEY"}`);
         ns.print("-".repeat(60));
         for (let s of hackedServers) {
@@ -101,20 +127,20 @@ export async function main(ns) {
             ns.print(`${s.padEnd(18)} | ${ns.formatRam(ram).padStart(8)} | ${ns.formatNumber(curM).padStart(8)} / ${ns.formatNumber(maxM)}`);
         }
 
-        // RAM STATS
+        // NETWORK RAM
         ns.print("\n=== NETWORK RAM ===");
         ns.print(`Total : ${ns.formatRam(totalMaxRam)}`);
         ns.print(`Used  : ${ns.formatRam(totalUsedRam)}`);
         ns.print(`Free  : ${ns.formatRam(totalFreeRam)}`);
         ns.print(`Usage : ${usagePercent.toFixed(2)}%`);
 
-        // INCOME STATS
-        ns.print("\n=== INCOME ===");
+        // INCOME WITH TIMESTAMP
+        ns.print(`\n=== INCOME (60s AVG) [${new Date().toLocaleTimeString()}] ===`);
         ns.print(`$ / sec  : ${ns.formatNumber(incomePerSec)}`);
         ns.print(`$ / min  : ${ns.formatNumber(incomePerMin)}`);
         ns.print(`$ / hour : ${ns.formatNumber(incomePerHour)}`);
         ns.print(`$ / day  : ${ns.formatNumber(incomePerDay)}`);
 
-        await ns.sleep(10000);
+        await ns.sleep(UPDATE_MS);
     }
 }
