@@ -52,7 +52,7 @@ The system is able to:
   - adapts to server size  
   - includes recovery logic  
 
-- **titan-batcher.js**  
+- **titan.js**  
   Adaptive high-throughput execution system with integrated monitoring.  
   - dynamically selects the best target  
   - distributes workload across all rooted servers  
@@ -82,7 +82,7 @@ The system is able to:
 ### Monitoring
 
 - **stats.js** – live system overview (RAM, servers, money, progress)  
-- **titan-batcher.js (built-in)** – integrated performance metrics (threads/sec, RAM usage, activity tracking)
+- **titan.js (built-in)** – integrated performance metrics (threads/sec, RAM usage, activity tracking)
 
 ---
 
