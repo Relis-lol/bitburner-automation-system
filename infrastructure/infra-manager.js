@@ -1,9 +1,19 @@
 /** @param {NS} ns **/
 export async function main(ns) {
     const prefix = "serv-";
-    const reserveLimit = 150000; 
+    const reserveLimit = 150000;
 
-    ns.disableLog("ALL"); // Schaltet wirklich alles aus
+    // Distribute both classic and delay-based worker scripts
+    const workerFiles = [
+        "hack.js",
+        "grow.js",
+        "weaken.js",
+        "hack2.js",
+        "grow2.js",
+        "weaken2.js",
+    ];
+
+    ns.disableLog("ALL");
     ns.ui.openTail();
     ns.print("=== INFRASTRUCTURE MANAGER ACTIVE ===");
 
@@ -27,21 +37,22 @@ export async function main(ns) {
 
                 let requiredPorts = ns.getServerNumPortsRequired(host);
 
-                // Nur versuchen zu nuken, wenn wir genug Programme haben
+                // Only try to nuke if enough port openers are available
                 if (openablePorts >= requiredPorts) {
                     if (ns.fileExists("BruteSSH.exe")) ns.brutessh(host);
                     if (ns.fileExists("FTPCrack.exe")) ns.ftpcrack(host);
                     if (ns.fileExists("relaySMTP.exe")) ns.relaysmtp(host);
                     if (ns.fileExists("HTTPWorm.exe")) ns.httpworm(host);
                     if (ns.fileExists("SQLInject.exe")) ns.sqlinject(host);
-                    
+
                     ns.nuke(host);
                     ns.print(`🔓 ROOT ACCESS GRANTED: ${host}`);
                 }
             }
 
+            // Copy worker scripts to every rooted non-home server
             if (ns.hasRootAccess(host) && host !== "home") {
-                await ns.scp(["hack.js", "grow.js", "weaken.js"], host, "home");
+                await ns.scp(workerFiles, host, "home");
             }
         }
 
@@ -49,7 +60,7 @@ export async function main(ns) {
         if (money > reserveLimit) {
             let spendable = money - reserveLimit;
             let myServers = ns.getPurchasedServers();
-            
+
             if (myServers.length < ns.getPurchasedServerLimit()) {
                 let cost = ns.getPurchasedServerCost(8);
                 if (spendable > cost) {
@@ -67,12 +78,13 @@ export async function main(ns) {
                             ns.deleteServer(s);
                             ns.purchaseServer(s, nextRam);
                             ns.print(`🆙 UPGRADE: ${s} to ${nextRam}GB`);
-                            break; 
+                            break;
                         }
                     }
                 }
             }
         }
-        await ns.sleep(5000); 
+
+        await ns.sleep(5000);
     }
 }
