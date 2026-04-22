@@ -3,7 +3,6 @@ export async function main(ns) {
     const prefix = "serv-";
     const reserveLimit = 150000;
 
-    // Distribute both classic and delay-based worker scripts
     const workerFiles = [
         "hack.js",
         "grow.js",
@@ -14,8 +13,7 @@ export async function main(ns) {
     ];
 
     ns.disableLog("ALL");
-    ns.ui.openTail();
-    ns.print("=== INFRASTRUCTURE MANAGER ACTIVE ===");
+    ns.tprint("infra-manager started");
 
     while (true) {
         let servers = ["home"];
@@ -37,7 +35,6 @@ export async function main(ns) {
 
                 let requiredPorts = ns.getServerNumPortsRequired(host);
 
-                // Only try to nuke if enough port openers are available
                 if (openablePorts >= requiredPorts) {
                     if (ns.fileExists("BruteSSH.exe")) ns.brutessh(host);
                     if (ns.fileExists("FTPCrack.exe")) ns.ftpcrack(host);
@@ -46,11 +43,10 @@ export async function main(ns) {
                     if (ns.fileExists("SQLInject.exe")) ns.sqlinject(host);
 
                     ns.nuke(host);
-                    ns.print(`🔓 ROOT ACCESS GRANTED: ${host}`);
+                    ns.tprint(`root access granted: ${host}`);
                 }
             }
 
-            // Copy worker scripts to every rooted non-home server
             if (ns.hasRootAccess(host) && host !== "home") {
                 await ns.scp(workerFiles, host, "home");
             }
@@ -65,7 +61,7 @@ export async function main(ns) {
                 let cost = ns.getPurchasedServerCost(8);
                 if (spendable > cost) {
                     let name = ns.purchaseServer(prefix + myServers.length, 8);
-                    ns.print(`🛒 BOUGHT: ${name}`);
+                    ns.tprint(`bought server: ${name}`);
                 }
             } else {
                 for (let s of myServers) {
@@ -77,7 +73,7 @@ export async function main(ns) {
                             ns.killall(s);
                             ns.deleteServer(s);
                             ns.purchaseServer(s, nextRam);
-                            ns.print(`🆙 UPGRADE: ${s} to ${nextRam}GB`);
+                            ns.tprint(`upgraded server: ${s} -> ${nextRam}GB`);
                             break;
                         }
                     }
