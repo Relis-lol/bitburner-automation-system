@@ -6,109 +6,90 @@ export async function main(ns) {
 
     const BUFFER = 100;
     const HOME_RESERVE = 20;
-    const REFRESH_INTERVAL = 30000; 
 
-    // Performance tracking variables
-    let threadHistory = [];
-    const HISTORY_SIZE = 10; // Keep track of the last 10 seconds
-
-    const getAllServers = (ns) => {
-        let servers = new Set(["home"]);
-        servers.forEach(s => ns.scan(s).forEach(n => servers.add(n)));
-        return Array.from(servers);
+    const getAllServers = () => {
+        let set = new Set(["home"]);
+        set.forEach(s => ns.scan(s).forEach(n => set.add(n)));
+        return Array.from(set);
     };
 
-    let allServers = getAllServers(ns);
-    let lastLevel = ns.getHackingLevel();
-    let lastServerCount = ns.getPurchasedServers().length;
-    let lastRefresh = Date.now();
-
     while (true) {
-        let currentLevel = ns.getHackingLevel();
-        let currentServerCount = ns.getPurchasedServers().length;
-        let currentTime = Date.now();
-        let threadsStartedThisTick = 0;
-
-        if (currentLevel > lastLevel || currentServerCount !== lastServerCount || (currentTime - lastRefresh) > REFRESH_INTERVAL) {
-            allServers = getAllServers(ns);
-            lastLevel = currentLevel;
-            lastServerCount = currentServerCount;
-            lastRefresh = currentTime;
-        }
-
-        let mainTarget = "n00dles";
-        let maxMoney = 0;
-        allServers.forEach(s => {
-            if (ns.hasRootAccess(s) && ns.getServerMaxMoney(s) > maxMoney && ns.getServerRequiredHackingLevel(s) <= ns.getHackingLevel()) {
-                maxMoney = ns.getServerMaxMoney(s);
-                mainTarget = s;
-            }
-        });
-
+        let allServers = getAllServers();
         let rootServers = allServers.filter(s => ns.hasRootAccess(s));
+
         let totalMaxRam = 0;
         let totalUsedRam = 0;
 
-        for (let host of rootServers) {
-            let hostRam = ns.getServerMaxRam(host);
-            let hostUsed = ns.getServerUsedRam(host);
-            totalMaxRam += hostRam;
-            totalUsedRam += hostUsed;
+        // 👉 Alle relevanten Targets sammeln
+        let targets = rootServers.filter(s => ns.getServerMaxMoney(s) > 0);
 
-            let freeRam = hostRam - hostUsed;
+        // 👉 Targets nach „Wert + Zustand“ sortieren
+        targets.sort((a, b) => {
+            let aScore = ns.getServerMaxMoney(a) * (ns.getServerMoneyAvailable(a) / ns.getServerMaxMoney(a));
+            let bScore = ns.getServerMaxMoney(b) * (ns.getServerMoneyAvailable(b) / ns.getServerMaxMoney(b));
+            return bScore - aScore;
+        });
+
+        for (let host of rootServers) {
+            let maxRam = ns.getServerMaxRam(host);
+            let usedRam = ns.getServerUsedRam(host);
+
+            totalMaxRam += maxRam;
+            totalUsedRam += usedRam;
+
+            let freeRam = maxRam - usedRam;
             if (host === "home") freeRam -= HOME_RESERVE;
             if (freeRam < 1.75) continue;
 
-            let target = (host.startsWith("serv-") || host === "home") ? mainTarget : host;
-            if (ns.getServerMaxMoney(target) <= 0) target = mainTarget;
+            let threads = Math.floor(freeRam / 1.75);
+
+            // 👉 Ziel für diesen Host wählen
+            let target = targets[0]; // bester Kandidat
+
+            // kleine Server arbeiten auf sich selbst
+            if (!host.startsWith("serv-") && host !== "home") {
+                target = host;
+            }
 
             let tMax = ns.getServerMaxMoney(target);
             let tCur = ns.getServerMoneyAvailable(target);
-            let tMinSec = ns.getServerMinSecurityLevel(target);
-            let tCurSec = ns.getServerSecurityLevel(target);
-            
-            let threads = Math.floor(freeRam / 1.75);
+            let tMin = ns.getServerMinSecurityLevel(target);
+            let tSec = ns.getServerSecurityLevel(target);
 
-            if (tCurSec > tMinSec + 0.1) {
+            // 👉 STABILITÄTS-LOGIK
+            if (tSec > tMin + 1) {
                 ns.exec("weaken.js", host, threads, target);
-                threadsStartedThisTick += threads;
-            } else if (tCur < tMax * 0.95) {
-                ns.exec("grow.js", host, threads, target);
-                threadsStartedThisTick += threads;
-            } else {
-                let hThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(target, tMax * 0.02)));
-                let gThreads = Math.ceil(ns.growthAnalyze(target, 1.05));
-                let wThreads = Math.ceil((hThreads * 0.002 + gThreads * 0.004) / 0.05) + 1;
-                let batchRam = (hThreads + gThreads + wThreads) * 1.75;
+                continue;
+            }
 
-                while (freeRam >= batchRam) {
-                    let id = Date.now() + Math.random();
-                    ns.exec("weaken.js", host, wThreads, target, id + "w");
-                    ns.exec("grow.js", host, gThreads, target, id + "g");
-                    ns.exec("hack.js", host, hThreads, target, id);
-                    let totalBatchThreads = (hThreads + gThreads + wThreads);
-                    threadsStartedThisTick += totalBatchThreads;
-                    freeRam -= batchRam;
-                }
+            if (tCur < tMax * 0.75) {
+                ns.exec("grow.js", host, threads, target);
+                continue;
+            }
+
+            // 👉 KONTROLLIERTES HACKEN (MAX 5%)
+            let hackThreads = Math.floor(ns.hackAnalyzeThreads(target, tCur * 0.05));
+
+            if (hackThreads < 1) hackThreads = 1;
+            if (hackThreads > threads) hackThreads = threads;
+
+            ns.exec("hack.js", host, hackThreads, target);
+
+            let remaining = threads - hackThreads;
+
+            if (remaining > 0) {
+                ns.exec("weaken.js", host, remaining, target);
             }
         }
 
-        // Performance Math: Calculate threads per second
-        threadHistory.push(threadsStartedThisTick);
-        if (threadHistory.length > (1000 / BUFFER) * HISTORY_SIZE) threadHistory.shift();
-        let avgThreadsPerSec = threadHistory.reduce((a, b) => a + b, 0) / (threadHistory.length * (BUFFER / 1000));
-
+        // 👉 Dashboard
         ns.clearLog();
-        ns.print(`--- TITAN VERSION ---`);
-        ns.print(`TARGET:   ${mainTarget.toUpperCase()}`);
-        ns.print(`MONEY:    ${ns.formatNumber(ns.getServerMoneyAvailable(mainTarget))} / ${ns.formatNumber(ns.getServerMaxMoney(mainTarget))}`);
-        ns.print(`SECURITY: +${(ns.getServerSecurityLevel(mainTarget) - ns.getServerMinSecurityLevel(mainTarget)).toFixed(3)}`);
+        ns.print(`--- TITAN  ---`);
+        ns.print(`TARGETS:  ${targets.length}`);
         ns.print(`----------------------------------`);
-        ns.print(`NETWORK RAM:  ${ns.formatRam(totalUsedRam)} / ${ns.formatRam(totalMaxRam)}`);
-        ns.print(`ROOT ACCESS:  ${rootServers.length} / ${allServers.length} Servers`);
-        ns.print(`AVG SPEED:    ${ns.formatNumber(avgThreadsPerSec, 0)} Threads/s`);
-        ns.print(`TOTAL ACTIVE: ${ns.formatNumber(totalUsedRam / 1.75, 0)} Running`);
-        
+        ns.print(`NETWORK RAM: ${ns.formatRam(totalUsedRam)} / ${ns.formatRam(totalMaxRam)}`);
+        ns.print(`ROOT: ${rootServers.length}`);
+
         await ns.sleep(BUFFER);
     }
 }
