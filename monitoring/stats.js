@@ -1,69 +1,66 @@
 /** @param {NS} ns **/
 export async function main(ns) {
-    // Disable standard logging to keep the UI clean
     ns.disableLog("ALL");
-    
-    // Modern UI commands (Future-proof)
-    ns.ui.openTail(); 
-    ns.ui.resizeTail(700, 450); 
+    ns.ui.openTail();
+    ns.ui.resizeTail(700, 500);
 
     while (true) {
-        ns.clearLog();
-        
-        // 1. NETWORK SCAN
+        // 1. SCAN ALL SERVERS
         let allServers = ["home"];
         for (let i = 0; i < allServers.length; i++) {
             let scanRes = ns.scan(allServers[i]);
-            for (let server of scanRes) {
-                if (!allServers.includes(server)) allServers.push(server);
+            for (let s of scanRes) {
+                if (!allServers.includes(s)) allServers.push(s);
             }
         }
 
-        // Filter: Only servers with root access
-        let rootServers = allServers.filter(s => ns.hasRootAccess(s));
+        let purchasedServers = [];
+        let hackedServers = [];
 
-        // Group 1: Player-owned servers (Home + Purchased)
-        let myServers = rootServers.filter(s => s === "home" || ns.getServer(s).purchasedByPlayer);
-        
-        // Group 2: Hacked remote servers (Sorted by Max Money)
-        let hackedServers = rootServers
-            .filter(s => s !== "home" && !ns.getServer(s).purchasedByPlayer)
-            .sort((a, b) => ns.getServerMaxMoney(b) - ns.getServerMaxMoney(a));
-
-        // Helper function for row formatting using modern ns.formatNumber
-        const printRow = (name, ramUsed, ramMax, money, moneyMax) => {
-            let moneyFmt = ns.formatNumber(money).padStart(7);
-            let maxMoneyFmt = ns.formatNumber(moneyMax).padEnd(7);
-            ns.print(
-                `${name.padEnd(18)} | ` +
-                `${ramUsed.toFixed(0).padStart(4)}/${ramMax.toString().padEnd(4)} GB | ` +
-                `${moneyFmt} / ${maxMoneyFmt}`
-            );
-        };
-
-        // UI Header: Owned Servers
-        ns.print("=== OWNED SERVERS (HOME & PURCHASED) ===");
-        ns.print(`${"NAME".padEnd(18)} | ${"RAM USAGE".padEnd(12)} | ${"MONEY"}`);
-        myServers.forEach(s => printRow(s, ns.getServerUsedRam(s), ns.getServerMaxRam(s), 0, 0));
-
-        // UI Header: Remote Targets
-        ns.print("\n=== HACKED REMOTE SERVERS (SORTED BY MAX MONEY) ===");
-        hackedServers.forEach(s => {
-            let maxMoney = ns.getServerMaxMoney(s);
-            // Show only servers that have money or provide RAM
-            if (maxMoney > 0 || ns.getServerMaxRam(s) > 0) {
-                printRow(s, ns.getServerUsedRam(s), ns.getServerMaxRam(s), ns.getServerMoneyAvailable(s), maxMoney);
+        for (let s of allServers) {
+            let serverInfo = ns.getServer(s);
+            
+            // Filter Purchased Servers (excluding home)
+            if (serverInfo.purchasedByPlayer && s !== "home") {
+                purchasedServers.push(s);
+            } 
+            // Filter Hacked Servers (Root access and money > 0, excluding purchased/home)
+            else if (ns.hasRootAccess(s) && ns.getServerMaxMoney(s) > 0 && !serverInfo.purchasedByPlayer) {
+                hackedServers.push(s);
             }
-        });
+        }
 
-        // Footer: Global Stats
-        ns.print("-".repeat(65));
-        let totalMaxRam = rootServers.reduce((a, b) => a + ns.getServerMaxRam(b), 0);
-        let totalUsedRam = rootServers.reduce((a, b) => a + ns.getServerUsedRam(b), 0);
+        // 2. SORTING
+        // Sort purchased servers by Max RAM (highest first)
+        purchasedServers.sort((a, b) => ns.getServerMaxRam(b) - ns.getServerMaxRam(a));
         
-        ns.print(`Root Access:     ${rootServers.length} / ${allServers.length} Servers`);
-        ns.print(`Network RAM:     ${ns.formatRam(totalUsedRam)} / ${ns.formatRam(totalMaxRam)}`);
+        // Sort hacked servers by Max Money (highest first)
+        hackedServers.sort((a, b) => ns.getServerMaxMoney(b) - ns.getServerMaxMoney(a));
 
-        await ns.sleep(2000);
+        // 3. UI RENDERING
+        ns.clearLog();
+        ns.print(`[${new Date().toLocaleTimeString()}] UPDATE EVERY 30S`);
+        
+        ns.print("\n=== PURCHASED SERVERS (Sorted by RAM) ===");
+        ns.print(`${"NAME".padEnd(18)} | ${"USED RAM".padStart(10)} / ${"MAX RAM"}`);
+        ns.print("-".repeat(50));
+        for (let s of purchasedServers) {
+            let ram = ns.getServerMaxRam(s);
+            let used = ns.getServerUsedRam(s);
+            ns.print(`${s.padEnd(18)} | ${ns.formatRam(used).padStart(10)} / ${ns.formatRam(ram)}`);
+        }
+
+        ns.print("\n=== HACKED SERVERS (Sorted by Max Money) ===");
+        ns.print(`${"NAME".padEnd(18)} | ${"RAM".padStart(8)} | ${"MONEY / MAX MONEY"}`);
+        ns.print("-".repeat(60));
+        for (let s of hackedServers) {
+            let curM = ns.getServerMoneyAvailable(s);
+            let maxM = ns.getServerMaxMoney(s);
+            let ram = ns.getServerMaxRam(s);
+            ns.print(`${s.padEnd(18)} | ${ns.formatRam(ram).padStart(8)} | ${ns.formatNumber(curM).padStart(8)} / ${ns.formatNumber(maxM)}`);
+        }
+
+        // 4. WAIT 30 SECONDS
+        await ns.sleep(30000);
     }
 }
