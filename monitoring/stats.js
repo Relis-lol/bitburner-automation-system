@@ -98,7 +98,19 @@ export async function main(ns) {
         // UI
         ns.clearLog();
 
-        ns.print(`=== PURCHASED SERVERS (${purchasedServers.length}/${MAX_PURCHASED_SERVERS}) ===`);
+        // HACKED SERVERS FIRST
+        ns.print(`=== HACKED SERVERS (${hackedServers.length}/${allServers.length - 1}) ===`);
+        ns.print(`${"NAME".padEnd(18)} | ${"RAM".padStart(8)} | ${"MONEY / MAX MONEY"}`);
+        ns.print("-".repeat(60));
+        for (let s of hackedServers) {
+            let curM = ns.getServerMoneyAvailable(s);
+            let maxM = ns.getServerMaxMoney(s);
+            let ram = ns.getServerMaxRam(s);
+            ns.print(`${s.padEnd(18)} | ${ns.formatRam(ram).padStart(8)} | ${ns.formatNumber(curM).padStart(8)} / ${ns.formatNumber(maxM)}`);
+        }
+
+        // PURCHASED SUMMARY SECOND
+        ns.print(`\n=== PURCHASED SERVERS (${purchasedServers.length}/${MAX_PURCHASED_SERVERS}) ===`);
 
         if (highestPurchased) {
             const max = ns.getServerMaxRam(highestPurchased);
@@ -114,17 +126,6 @@ export async function main(ns) {
             ns.print(`Lowest RAM  : ${lowestPurchased} | ${ns.formatRam(used)} / ${ns.formatRam(max)}`);
         } else {
             ns.print("Lowest RAM  : -");
-        }
-
-        // HACKED SERVERS
-        ns.print(`\n=== HACKED SERVERS (${hackedServers.length}/${allServers.length - 1}) ===`);
-        ns.print(`${"NAME".padEnd(18)} | ${"RAM".padStart(8)} | ${"MONEY / MAX MONEY"}`);
-        ns.print("-".repeat(60));
-        for (let s of hackedServers) {
-            let curM = ns.getServerMoneyAvailable(s);
-            let maxM = ns.getServerMaxMoney(s);
-            let ram = ns.getServerMaxRam(s);
-            ns.print(`${s.padEnd(18)} | ${ns.formatRam(ram).padStart(8)} | ${ns.formatNumber(curM).padStart(8)} / ${ns.formatNumber(maxM)}`);
         }
 
         // NETWORK RAM
