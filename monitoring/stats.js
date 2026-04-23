@@ -7,7 +7,7 @@ export async function main(ns) {
     const UPDATE_MS = 1000; // 1s
     const HISTORY_LENGTH = 300; // 5 min rolling average at 1s intervals
     const MAX_PURCHASED_SERVERS = 25;
-    const ACTIVE_TARGET_COUNT = 4;
+    const PRESSURED_TARGET_COUNT = 4;
 
     let incomeHistory = [];
 
@@ -76,8 +76,8 @@ export async function main(ns) {
         let highestPurchased = purchasedServers.length > 0 ? purchasedServers[0] : null;
         let lowestPurchased = purchasedServers.length > 0 ? purchasedServers[purchasedServers.length - 1] : null;
 
-        // ACTIVE TARGETS
-        let activeTargets = hackedServers
+        // PRESSURED TARGETS
+        let pressuredTargets = hackedServers
             .map(s => {
                 let curM = ns.getServerMoneyAvailable(s);
                 let maxM = ns.getServerMaxMoney(s);
@@ -89,15 +89,23 @@ export async function main(ns) {
 
                 let pressureScore = (100 - moneyRatio) + (secDelta * 12);
 
+                let status = "OK";
+                if (moneyRatio < 20 && secDelta > 20) {
+                    status = "CRITICAL";
+                } else if (moneyRatio < 50 || secDelta > 10) {
+                    status = "UNSTABLE";
+                }
+
                 return {
                     name: s,
                     moneyRatio,
                     secDelta,
                     pressureScore,
+                    status,
                 };
             })
             .sort((a, b) => b.pressureScore - a.pressureScore)
-            .slice(0, ACTIVE_TARGET_COUNT);
+            .slice(0, PRESSURED_TARGET_COUNT);
 
         // UI
         ns.clearLog();
@@ -133,17 +141,18 @@ export async function main(ns) {
             ns.print("Lowest RAM  : -");
         }
 
-        ns.print(`\n=== ACTIVE TARGETS ===`);
-        if (activeTargets.length === 0) {
-            ns.print("No active rooted money targets found.");
+        ns.print(`\n=== PRESSURED TARGETS ===`);
+        if (pressuredTargets.length === 0) {
+            ns.print("No pressured rooted money targets found.");
         } else {
-            ns.print(`${"NAME".padEnd(18)} | ${"MONEY".padStart(7)} | ${"SEC"}`);
-            ns.print("-".repeat(46));
-            for (let t of activeTargets) {
+            ns.print(`${"NAME".padEnd(18)} | ${"MONEY".padStart(7)} | ${"SEC".padStart(6)} | ${"STATUS"}`);
+            ns.print("-".repeat(62));
+            for (let t of pressuredTargets) {
                 ns.print(
                     `${t.name.padEnd(18)} | ` +
                     `${(t.moneyRatio.toFixed(1) + "%").padStart(7)} | ` +
-                    `+${t.secDelta.toFixed(2)}`
+                    `${("+" + t.secDelta.toFixed(2)).padStart(6)} | ` +
+                    `${t.status}`
                 );
             }
         }
