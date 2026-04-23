@@ -131,7 +131,7 @@ Older or replaced scripts kept for reference.
 | apex-batcher.js  | 5.8 GB    |
 | titan.js         | 4.65 GB   |
 | script_update.js | 4.4 GB    |
-| stats.js         | 4.15 GB   |
+| stats.js         | 4.45 GB   |
 | backdoorsscan.js | 3.85 GB   |
 | basic_hack.js    | 2.45 GB   |
 | path.js          | 1.8 GB    |
