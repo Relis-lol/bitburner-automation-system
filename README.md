@@ -110,7 +110,7 @@ Older or replaced scripts kept for reference.
   Earlier orchestration system.  
   Caused excessive resource usage and over-drained targets due to lack of load control.
 
-- **godmode.js**  
+- **GM.js**  
   Fully centralized brute-force strategy.  
   Inefficient after resets and unable to stabilize targets properly.
 
