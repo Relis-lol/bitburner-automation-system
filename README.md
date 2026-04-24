@@ -1,7 +1,3 @@
-Hier ist die **kompaktere, saubere Version** – deutlich kürzer, aber immer noch stark genug für dein Portfolio:
-
----
-
 # Bitburner Automation System
 
 Automation system built in the programming game *Bitburner*.
@@ -10,27 +6,29 @@ Automation system built in the programming game *Bitburner*.
 
 ## Overview
 
-This project evolved from simple scripts into a **distributed automation system** capable of handling large-scale networks (TB → PB RAM).
+This project evolved from simple scripts into a distributed automation system for large-scale Bitburner networks.
 
 Core responsibilities:
 
-* infrastructure management
-* orchestration
-* execution
-* monitoring
-* optional trading
+- infrastructure management
+- HWGW orchestration
+- worker execution
+- monitoring
+- XP grinding
+- optional stock trading
 
 ---
 
 ## Core Features
 
-* automatic target discovery and scoring
-* coordinated HWGW batch execution
-* distributed workload across all rooted servers
-* RAM-aware scaling and scheduling
-* automated server purchasing and upgrades
-* real-time monitoring
-* optional stock trading (4S API)
+- automatic target discovery and scoring
+- coordinated HWGW batch execution
+- distributed workload across rooted servers
+- RAM-aware scaling and scheduling
+- automated server purchasing and upgrades
+- real-time monitoring
+- dedicated XP farming
+- optional stock trading with 4S API
 
 ---
 
@@ -38,99 +36,121 @@ Core responsibilities:
 
 ### Infrastructure
 
-* **infra-manager.js**
-  Network scan, rooting (incl. SQLInject), script deployment, server upgrades
+- **infra-manager.js**  
+  Network scan, rooting, script deployment, server buying and upgrades.
 
 ---
 
-### Orchestration (Main)
+### Orchestration
 
-* **apex-hwgw.js** ⭐
-  High-performance HWGW batch engine
+- **apex-hwgw.js** ⭐  
+  Main HWGW profit engine.
 
-  * multi-target optimization
-  * prep logic (grow/weaken)
-  * RAM-aware batch sizing
-  * distributed execution
-  * concurrency + timing control
-
-👉 Single active orchestrator (avoids conflicts)
-
----
-
-### Execution
-
-* **hack2.js / grow2.js / weaken2.js** – batch workers
-* **hack.js / grow.js / weaken.js** – legacy/simple
+  Features:
+  - multi-target batching
+  - prep logic
+  - RAM-aware batch sizing
+  - distributed execution
+  - timing and concurrency control
 
 ---
 
-### Trading (Optional)
+### Workers
 
-* **stock-trader.js**
-  Long-only system using 4S API
-
-  * forecast-based decisions
-  * risk + capital management
+- **hack2.js / grow2.js / weaken2.js** – delay-compatible batch workers
+- **hack.js / grow.js / weaken.js** – simple legacy workers
 
 ---
 
-### Access Tools
+### XP
 
-* **backdoors.js**, **backdoorsscan.js**, **path.js**
+- **xp-grinder.js**  
+  Dedicated hacking XP grinder using `weaken2.js` against `joesguns`.
+
+  Features:
+  - configurable RAM quota
+  - network-wide deployment
+  - home RAM reserve
+  - safe worker detection
+
+---
+
+### Trading
+
+- **stock-trader.js**  
+  Long-only stock trader using 4S Market Data.
+
+  Features:
+  - forecast-based entries and exits
+  - position limits
+  - reserve budget
+  - capped capital allocation
 
 ---
 
 ### Monitoring
 
-* **stats.js** – RAM, income, targets
-* **apex-hwgw.js** – internal logging
+- **stats.js**  
+  Live overview for RAM usage, server status, and income.
+
+---
+
+### Access Tools
+
+- **backdoors.js** – automatic backdoor installation
+- **backdoorsscan.js** – lists possible backdoor targets
+- **path.js** – generates connection paths
 
 ---
 
 ### Legacy
 
-* adaptive-batch-orchestrator.js
-* apex-batcher.js
-* titan.js
-* GM-series
+Older systems kept for reference:
 
-(Replaced by apex-hwgw)
+- adaptive-batch-orchestrator.js
+- apex-batcher.js
+- titan.js
+- GM-series
+- basic_hack.js
+- script_update.js
 
 ---
 
 ## RAM Usage
 
-| Script           |      RAM |
-| ---------------- | -------: |
+| Script            | RAM |
+|------------------|----:|
+| stock-trader.js  | 18.2 GB |
 | apex-hwgw.js     | 10.75 GB |
-| stock-trader.js  |  18.2 GB |
-| infra-manager.js |   9.5 GB |
-| stats.js         |  4.25 GB |
-| workers (each)   |  1.75 GB |
+| infra-manager.js | 9.5 GB |
+| xp-grinder.js    | depends on quota |
+| stats.js         | 4.25 GB |
+| workers (each)   | 1.75 GB |
 
 ---
 
 ## Design Principles
 
-* single orchestrator (no conflicts)
-* RAM-aware scheduling
-* modular structure
-* scalable to large networks
+- one active profit orchestrator
+- distributed execution
+- RAM-aware scheduling
+- modular systems
+- scalable from GB/TB to PB networks
 
 ---
 
 ## Purpose
 
-Demonstrates:
+This project demonstrates:
 
-* distributed execution
-* resource optimization
-* automation system design
-* performance scaling
+- automation design
+- distributed scheduling
+- resource optimization
+- system monitoring
+- iterative performance tuning
 
 ---
 
 ## Status
 
-Active side project focused on automation and system design.
+Active side project focused on automation, optimization, and system design.
