@@ -123,7 +123,7 @@ Older systems kept for reference:
 | stock-trader.js  | 18.2 GB |
 | apex-hwgw.js     | 10.75 GB |
 | infra-manager.js | 9.5 GB |
-| xp-grinder.js    | depends on quota |
+| xp-grinder.js    | 3.55 GB + depends on quota |
 | stats.js         | 4.25 GB |
 | workers (each)   | 1.75 GB |
 
