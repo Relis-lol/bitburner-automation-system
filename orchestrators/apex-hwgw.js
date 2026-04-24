@@ -1,15 +1,7 @@
 /** @param {NS} ns **/
-
-//Variables
-//MAX_TARGETS = 20
-//MAX_ACTIVE_JOBS_PER_TARGET = 5000
-//BATCH_COOLDOWN_MS = 75
-//BATCH_SPACING = 80
-
-
 export async function main(ns) {
     ns.disableLog("ALL");
-    ns.tprint("script starts: apex-hwgw PB-mode profit engine online");
+    ns.tprint("script starts: apex-hwgw stable overgrow/overweaken engine online");
 
     const HACK_SCRIPT = "hack2.js";
     const GROW_SCRIPT = "grow2.js";
@@ -21,17 +13,25 @@ export async function main(ns) {
     const SECURITY_READY_BUFFER = 0.35;
 
     const MAX_TARGETS = 50;
-    const MAX_ACTIVE_JOBS_PER_TARGET = 15000;
+    const MAX_ACTIVE_JOBS_PER_TARGET = 5000;
 
     const LOOP_DELAY = 100;
-    const BATCH_COOLDOWN_MS = 25;
+    const BATCH_COOLDOWN_MS = 60;
     const PREP_COOLDOWN_MS = 3000;
-    const BATCH_SPACING = 50;
+    const BATCH_SPACING = 80;
 
-    const MAX_HACK_FRACTION = 0.20;
+    const MAX_HACK_FRACTION = 0.22;
     const MIN_HACK_FRACTION = 0.0001;
 
     const MAX_NETWORK_USAGE = 0.95;
+
+    // More RAM goes into stability, not more hack pressure.
+    const BATCH_GROW_BUFFER = 1.50;
+    const BATCH_WEAKEN_HACK_BUFFER = 1.35;
+    const BATCH_WEAKEN_GROW_BUFFER = 1.70;
+
+    const PREP_GROW_BUFFER = 1.75;
+    const PREP_WEAKEN_BUFFER = 1.90;
 
     const state = {};
 
@@ -78,7 +78,9 @@ export async function main(ns) {
                         HOME_RESERVE_GB,
                         MONEY_READY,
                         GROW_SCRIPT,
-                        WEAKEN_SCRIPT
+                        WEAKEN_SCRIPT,
+                        PREP_GROW_BUFFER,
+                        PREP_WEAKEN_BUFFER
                     );
 
                     state[target].lastPrep = now;
@@ -102,7 +104,10 @@ export async function main(ns) {
                 MIN_HACK_FRACTION,
                 HACK_SCRIPT,
                 GROW_SCRIPT,
-                WEAKEN_SCRIPT
+                WEAKEN_SCRIPT,
+                BATCH_GROW_BUFFER,
+                BATCH_WEAKEN_HACK_BUFFER,
+                BATCH_WEAKEN_GROW_BUFFER
             );
 
             if (!batch) continue;
@@ -219,6 +224,7 @@ function getTotalAvailableRam(ns, hosts, homeReserveGb) {
 function getBestTargets(ns) {
     return getAllServers(ns)
         .filter(target => ns.hasRootAccess(target))
+        .filter(target => target !== "joesguns")
         .filter(target => ns.getServerMaxMoney(target) > 0)
         .filter(target => ns.getServerRequiredHackingLevel(target) <= ns.getHackingLevel())
         .map(target => {
@@ -280,7 +286,10 @@ function calculateBatch(
     minHackFraction,
     hackScript,
     growScript,
-    weakenScript
+    weakenScript,
+    growBuffer,
+    weakenHackBuffer,
+    weakenGrowBuffer
 ) {
     const hackPercentPerThread = ns.hackAnalyze(target);
 
@@ -303,7 +312,7 @@ function calculateBatch(
         );
 
         const realHackFraction = Math.min(
-            0.20,
+            maxHackFraction,
             hackThreads * hackPercentPerThread
         );
 
@@ -311,7 +320,7 @@ function calculateBatch(
 
         const growThreads = Math.max(
             1,
-            Math.ceil(ns.growthAnalyze(target, growMultiplier))
+            Math.ceil(ns.growthAnalyze(target, growMultiplier) * growBuffer)
         );
 
         const hackSecurityIncrease = ns.hackAnalyzeSecurity(hackThreads, target);
@@ -320,12 +329,12 @@ function calculateBatch(
 
         const weakenHackThreads = Math.max(
             1,
-            Math.ceil(hackSecurityIncrease / weakenPower)
+            Math.ceil((hackSecurityIncrease / weakenPower) * weakenHackBuffer)
         );
 
         const weakenGrowThreads = Math.max(
             1,
-            Math.ceil(growSecurityIncrease / weakenPower)
+            Math.ceil((growSecurityIncrease / weakenPower) * weakenGrowBuffer)
         );
 
         const totalRam =
@@ -470,7 +479,9 @@ function prepTarget(
     homeReserveGb,
     moneyReady,
     growScript,
-    weakenScript
+    weakenScript,
+    prepGrowBuffer,
+    prepWeakenBuffer
 ) {
     const moneyRatio = getMoneyRatio(ns, target);
     const secGap = getSecurityGap(ns, target);
@@ -478,7 +489,10 @@ function prepTarget(
     const batchId = `prep-${target}-${Date.now()}-${Math.random()}`;
 
     if (secGap > 0.25) {
-        const weakenThreads = Math.max(1, Math.ceil(secGap / weakenPower));
+        const weakenThreads = Math.max(
+            1,
+            Math.ceil((secGap / weakenPower) * prepWeakenBuffer)
+        );
 
         runDistributed(
             ns,
@@ -500,14 +514,14 @@ function prepTarget(
 
         const growThreads = Math.max(
             1,
-            Math.ceil(ns.growthAnalyze(target, growMultiplier))
+            Math.ceil(ns.growthAnalyze(target, growMultiplier) * prepGrowBuffer)
         );
 
         const growSecurityIncrease = ns.growthAnalyzeSecurity(growThreads, target);
 
         const weakenThreads = Math.max(
             1,
-            Math.ceil(growSecurityIncrease / weakenPower)
+            Math.ceil((growSecurityIncrease / weakenPower) * prepWeakenBuffer)
         );
 
         runDistributed(
