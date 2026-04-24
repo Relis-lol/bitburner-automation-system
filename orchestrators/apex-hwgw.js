@@ -1,4 +1,12 @@
 /** @param {NS} ns **/
+
+//Variables
+//MAX_TARGETS = 20
+//MAX_ACTIVE_JOBS_PER_TARGET = 5000
+//BATCH_COOLDOWN_MS = 75
+//BATCH_SPACING = 80
+
+
 export async function main(ns) {
     ns.disableLog("ALL");
     ns.tprint("script starts: apex-hwgw PB-mode profit engine online");
@@ -12,13 +20,13 @@ export async function main(ns) {
     const MONEY_READY = 0.97;
     const SECURITY_READY_BUFFER = 0.35;
 
-    const MAX_TARGETS = 20;
-    const MAX_ACTIVE_JOBS_PER_TARGET = 5000;
+    const MAX_TARGETS = 50;
+    const MAX_ACTIVE_JOBS_PER_TARGET = 15000;
 
     const LOOP_DELAY = 100;
-    const BATCH_COOLDOWN_MS = 75;
+    const BATCH_COOLDOWN_MS = 25;
     const PREP_COOLDOWN_MS = 3000;
-    const BATCH_SPACING = 80;
+    const BATCH_SPACING = 50;
 
     const MAX_HACK_FRACTION = 0.20;
     const MIN_HACK_FRACTION = 0.0001;
