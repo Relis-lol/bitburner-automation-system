@@ -6,12 +6,11 @@ Automation system built in the programming game *Bitburner*.
 
 ## Overview
 
-This project evolved from simple scripts into a scalable automation system capable of handling large networks (TB → PB range).
+This project evolved from simple scripts into a scalable automation system capable of handling large networks (TB → PB scale).
 
 Core responsibilities:
-
 - network preparation
-- profit orchestration (HWGW)
+- profit orchestration
 - infrastructure automation
 - distributed execution
 - monitoring
@@ -23,86 +22,89 @@ Core responsibilities:
 ## Features
 
 - automatic target discovery and scoring
-- full-network prep before profit runs
-- coordinated HWGW batch execution
-- distributed workload across rooted servers
+- full-network preparation before profit runs
+- coordinated batch-based execution (hack / grow / weaken cycles)
+- distributed workload across all rooted servers
 - RAM-aware scaling
 - automated server purchasing and upgrading
 - real-time monitoring
 - XP optimization system
-- stock trading (4S API)
+- stock trading via 4S API
 
 ---
 
 ## Core Components
 
 ### apex-hwgw.js
-Main profit engine  
-- HWGW batching  
-- multi-target scheduling  
-- RAM-aware execution  
-- prep + profit integration  
+Main profit engine
+- batch-based extraction logic
+- multi-target scheduling
+- RAM-aware execution
+- integrates preparation + profit
 
 ### prep-all.js
-Full-network preparation  
-- reduces security to minimum  
-- grows money to ~99%  
-- exits automatically when done  
+Full-network preparation
+- reduces security to minimum
+- grows money to ~99%
+- exits automatically when complete
 
 ### infra-manager.js
-Infrastructure automation  
-- network scan  
-- rooting  
-- script deployment  
-- server upgrades  
+Infrastructure automation
+- network scanning
+- rooting servers
+- script deployment
+- server purchasing and upgrading
 
 ### restart.js
-Execution gatekeeper  
-- waits for prep phase  
-- launches main engine automatically  
+Execution gatekeeper
+- waits until prep phase finishes
+- automatically starts main engine
 
 ### xp-grinder.js
-XP farming system  
-- consumes a configurable share of total network RAM  
-- optimized for long-term leveling  
-- ⚠ requires manual tuning depending on network size and goals  
+XP farming system
+- consumes configurable share of total network RAM
+- optimized for long-term leveling
+- requires manual tuning depending on network size
 
 ### stock-trader.js
-Long-only trading system  
-- uses 4S API  
-- risk-limited portfolio  
+Long-only trading system
+- uses 4S Market Data API
+- risk-controlled position management
+
+### trade-sellout.js
+Reset utility
+- liquidates all stock positions (long & short)
+- ensures clean exit before reset
 
 ---
 
 ## Workers
 
 Execution layer:
-
-- hack / grow / weaken  
-- batch-compatible versions (hack2 / grow2 / weaken2)
+- hack.js / grow.js / weaken.js
+- hack2.js / grow2.js / weaken2.js (batch-compatible, delayed execution)
 
 ---
 
 ## Design Principles
 
-- one active orchestrator at a time  
-- prep before profit  
-- distributed execution  
-- RAM-aware scheduling  
-- modular architecture  
-- scalable to very large networks  
+- one active orchestrator at a time
+- prep before profit
+- distributed execution across the network
+- RAM-aware scheduling
+- modular architecture
+- scalable to very large environments
 
 ---
 
 ## Purpose
 
 This project demonstrates:
-
-- distributed system design  
-- resource scheduling  
-- automation logic  
-- performance optimization  
-- iterative system evolution  
+- distributed system design
+- resource-aware scheduling
+- automation architecture
+- performance optimization
+- iterative system evolution
 
 ---
 
