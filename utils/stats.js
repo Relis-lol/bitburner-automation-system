@@ -9,6 +9,7 @@ export async function main(ns) {
     const MAX_PURCHASED_SERVERS = 25;
 
     let incomeHistory = [];
+    let lastMoney = ns.getServerMoneyAvailable("home");
 
     while (true) {
         // 1. SCAN ALL SERVERS
@@ -54,9 +55,12 @@ export async function main(ns) {
 
         hackedServers.sort((a, b) => ns.getServerMaxMoney(b) - ns.getServerMaxMoney(a));
 
-        // INCOME CALC (real script income, smoothed internally over 5 minutes)
-        let incomePerSecLive = Math.max(0, ns.getTotalScriptIncome()[0]);
-        incomeHistory.push(incomePerSecLive);
+        // --- IMPROVED INCOME CALC (Delta based to ignore spending) ---
+        let currentMoney = ns.getServerMoneyAvailable("home");
+        let delta = currentMoney - lastMoney;
+        let incomeThisTick = delta > 0 ? delta : 0; 
+        
+        incomeHistory.push(incomeThisTick);
         if (incomeHistory.length > HISTORY_LENGTH) {
             incomeHistory.shift();
         }
@@ -66,6 +70,19 @@ export async function main(ns) {
             : 0;
 
         let incomePerDay = incomePerSec * 86400;
+        
+        // Share Calculation with NaN protection
+        let hackIncomeOnly = ns.getTotalScriptIncome();
+        let hackShare = 0;
+        let otherShare = 0;
+
+        if (incomePerSec > 0) {
+            hackShare = (hackIncomeOnly / incomePerSec) * 100;
+            if (hackShare > 100) hackShare = 100;
+            otherShare = 100 - hackShare;
+        }
+
+        lastMoney = currentMoney;
 
         // RAM CALC
         let totalFreeRam = totalMaxRam - totalUsedRam;
@@ -81,7 +98,7 @@ export async function main(ns) {
         ns.print(`=== HACKED SERVERS (${hackedServers.length}/${allServers.length - 1}) ===`);
         ns.print(`${"NAME".padEnd(18)} | ${"RAM".padStart(8)} | ${"MONEY / MAX MONEY"}`);
         ns.print("-".repeat(60));
-        for (let s of hackedServers) {
+        for (let s of hackedServers.slice(0, 10)) {
             let curM = ns.getServerMoneyAvailable(s);
             let maxM = ns.getServerMaxMoney(s);
             let ram = ns.getServerMaxRam(s);
@@ -118,6 +135,12 @@ export async function main(ns) {
         ns.print(`\n=== INCOME [${new Date().toLocaleTimeString()}] ===`);
         ns.print(`$/s : ${ns.formatNumber(incomePerSec)}`);
         ns.print(`$/d : ${ns.formatNumber(incomePerDay)}`);
+        
+        if (incomePerSec > 0) {
+            ns.print(`Share: Hacking ${hackShare.toFixed(1)}% | Others ${otherShare.toFixed(1)}%`);
+        } else {
+            ns.print(`Share: Calculating...`);
+        }
 
         await ns.sleep(UPDATE_MS);
     }
