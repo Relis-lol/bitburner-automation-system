@@ -1,3 +1,5 @@
+import { isLocked } from "lock-manager.js";
+
 /** @param {NS} ns **/
 export async function main(ns) {
   ns.disableLog("ALL");
@@ -13,34 +15,24 @@ export async function main(ns) {
   const SECURITY_READY_BUFFER = 0.35;
 
   const MAX_TARGETS = 50;
-  // const MAX_TARGETS = 10
   const MAX_ACTIVE_JOBS_PER_TARGET = 35000;
-  // const MAX_ACTIVE_JOBS_PER_TARGET = 5000
 
   const LOOP_DELAY = 100;
   const BATCH_COOLDOWN_MS = 60;
   const PREP_COOLDOWN_MS = 3000;
   const BATCH_SPACING = 40;
-  // const BATCH_SPACING = 80;
 
   const MAX_HACK_FRACTION = 0.40;
-  //  const MAX_HACK_FRACTION = 0.22;
   const MIN_HACK_FRACTION = 0.0001;
 
   const MAX_NETWORK_USAGE = 0.95;
 
-  // More RAM goes into stability, not more hack pressure.
   const BATCH_GROW_BUFFER = 1.60;
-  // const BATCH_GROW_BUFFER = 1.50;
   const BATCH_WEAKEN_HACK_BUFFER = 1.50;
-  //  const BATCH_WEAKEN_HACK_BUFFER = 1.35;
   const BATCH_WEAKEN_GROW_BUFFER = 1.80;
-  // const BATCH_WEAKEN_GROW_BUFFER = 1.70;
 
   const PREP_GROW_BUFFER = 2.0;
-  // const PREP_GROW_BUFFER = 1.75;
   const PREP_WEAKEN_BUFFER = 2.0;
-  //const PREP_WEAKEN_BUFFER = 1.90;
 
   const state = {};
 
@@ -234,6 +226,7 @@ function getBestTargets(ns) {
   return getAllServers(ns)
     .filter(target => ns.hasRootAccess(target))
     .filter(target => target !== "joesguns")
+    .filter(target => !isLocked(ns, target))
     .filter(target => ns.getServerMaxMoney(target) > 0)
     .filter(target => ns.getServerRequiredHackingLevel(target) <= ns.getHackingLevel())
     .map(target => {
