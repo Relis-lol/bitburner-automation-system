@@ -1,36 +1,51 @@
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
-    ns.ui.openTail(); 
+    ns.ui.openTail();
 
     const PREP_SCRIPT = "prep-all.js";
-    const HGW_SCRIPT = "apex-hwgw.js";
-    const CHECK_INTERVAL = 30000; // Updated to 30 seconds
+
+    const STARTUP_SCRIPTS = [
+        "apex-hwgw.js",
+        "market-controller.js",
+        "stats.js",
+        "stock-trader-shorts.js",
+        "infra-manager.js",
+    ];
+
+    const CHECK_INTERVAL = 30000;
 
     ns.print("Gatekeeper active: Monitoring " + PREP_SCRIPT);
 
     while (true) {
         const isPrepRunning = ns.scriptRunning(PREP_SCRIPT, "home");
-        const time = new Date().toLocaleTimeString(); // Get current timestamp
+        const time = new Date().toLocaleTimeString();
 
         if (!isPrepRunning) {
             ns.tprint(`[${time}] SUCCESS: ${PREP_SCRIPT} has finished execution.`);
-            ns.tprint(`[${time}] Launching ${HGW_SCRIPT} now...`);
+            ns.tprint(`[${time}] Launching startup scripts...`);
 
-            const pid = ns.run(HGW_SCRIPT, 1);
+            for (const script of STARTUP_SCRIPTS) {
+                if (ns.scriptRunning(script, "home")) {
+                    ns.tprint(`[${time}] SKIP: ${script} is already running.`);
+                    continue;
+                }
 
-            if (pid === 0) {
-                ns.tprint("ERROR: Failed to launch " + HGW_SCRIPT + ". Check Home RAM!");
-            } else {
-                ns.tprint("Engine successfully deployed with PID: " + pid);
-                // Final completion message
-                ns.tprint("--- Gatekeeper mission accomplished. Shutting down. ---");
+                const pid = ns.run(script, 1);
+
+                if (pid === 0) {
+                    ns.tprint(`[${time}] ERROR: Failed to launch ${script}. Check Home RAM or filename.`);
+                } else {
+                    ns.tprint(`[${time}] STARTED: ${script} with PID ${pid}`);
+                }
+
+                await ns.sleep(500);
             }
 
+            ns.tprint("--- Gatekeeper mission accomplished. Shutting down. ---");
             break;
         }
 
-        // Status update with timestamp
         ns.print(`[${time}] Status: Prep-phase still in progress...`);
         await ns.sleep(CHECK_INTERVAL);
     }
