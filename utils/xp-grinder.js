@@ -11,7 +11,7 @@ export async function main(ns) {
 
     const WORKER_SCRIPT = "weaken2.js";
     const HOME_RESERVE_GB = 50; 
-    const MAX_RAM_PERCENTAGE = 0.70; 
+    const MAX_RAM_PERCENTAGE = 0.50; 
     const TARGET = "joesguns"; 
     const TICK_RATE = 1000;
 
