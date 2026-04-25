@@ -71,14 +71,15 @@ export async function main(ns) {
 
         let incomePerDay = incomePerSec * 86400;
         
-        // Share Calculation with NaN protection
-        let hackIncomeOnly = ns.getTotalScriptIncome();
+        // --- FIXED: Added [0] to get the number from the array ---
+        let hackIncomeOnly = ns.getTotalScriptIncome()[0]; 
         let hackShare = 0;
         let otherShare = 0;
 
         if (incomePerSec > 0) {
             hackShare = (hackIncomeOnly / incomePerSec) * 100;
             if (hackShare > 100) hackShare = 100;
+            if (hackShare < 0) hackShare = 0;
             otherShare = 100 - hackShare;
         }
 
@@ -113,7 +114,7 @@ export async function main(ns) {
         if (highestPurchased) {
             const max = ns.getServerMaxRam(highestPurchased);
             const used = ns.getServerUsedRam(highestPurchased);
-            ns.print(`Highest RAM : ${highestPurchased} | ${ns.formatRam(used)} / ${ns.formatRam(max)}`);
+            ns.print(`Highest RAM : ${highestPurchased.padEnd(10)} | ${ns.formatRam(used)} / ${ns.formatRam(max)}`);
         } else {
             ns.print("Highest RAM : -");
         }
@@ -121,7 +122,7 @@ export async function main(ns) {
         if (lowestPurchased) {
             const max = ns.getServerMaxRam(lowestPurchased);
             const used = ns.getServerUsedRam(lowestPurchased);
-            ns.print(`Lowest RAM  : ${lowestPurchased} | ${ns.formatRam(used)} / ${ns.formatRam(max)}`);
+            ns.print(`Lowest RAM  : ${lowestPurchased.padEnd(10)} | ${ns.formatRam(used)} / ${ns.formatRam(max)}`);
         } else {
             ns.print("Lowest RAM  : -");
         }
