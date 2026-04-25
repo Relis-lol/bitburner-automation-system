@@ -3,7 +3,7 @@ import { isLocked } from "lock-manager.js";
 /** @param {NS} ns **/
 export async function main(ns) {
   ns.disableLog("ALL");
-  ns.tprint("script starts: apex-hwgw stable overgrow/overweaken engine online");
+  ns.tprint("script starts: apex-hwgw stable engine online");
 
   const HACK_SCRIPT = "hack2.js";
   const GROW_SCRIPT = "grow2.js";
