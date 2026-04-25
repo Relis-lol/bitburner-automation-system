@@ -9,6 +9,7 @@ Automation system built in the programming game *Bitburner*.
 This project evolved from simple scripts into a scalable automation system capable of handling large networks (TB → PB scale).
 
 Core responsibilities:
+- automated progression (early → mid → late game)
 - network preparation
 - profit orchestration
 - infrastructure automation
@@ -35,6 +36,13 @@ Core responsibilities:
 
 ## Core Components
 
+### adaptive-rush.js
+Full progression engine (early → midgame automation)
+- auto-rooting and expansion
+- dynamic phase system (XP → Prep → Bridge)
+- prepares network automatically
+- hands off into main system when ready
+
 ### apex-hwgw.js
 Main profit engine
 - batch-based extraction logic
@@ -59,6 +67,10 @@ Infrastructure automation
 Execution gatekeeper
 - waits until prep phase finishes
 - automatically starts main engine
+
+---
+
+## Systems
 
 ### xp-grinder.js
 XP farming system
