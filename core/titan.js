@@ -1,99 +1,96 @@
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
-    ns.ui.openTail();
-    ns.ui.resizeTail(600, 420);
+    
+    // Terminal notification instead of a popup
+    ns.tprint("--- TITAN STARTED ---");
 
-    const SLEEP_TIME = 100;
-    const HOME_RESERVE_RAM = 20;
+    const BUFFER = 100;
+    const HOME_RESERVE = 20;
 
-    // Helper to find every server in the network
     const getAllServers = () => {
-        let serverList = new Set(["home"]);
-        serverList.forEach(host => ns.scan(host).forEach(neighbor => serverList.add(neighbor)));
-        return Array.from(serverList);
+        let set = new Set(["home"]);
+        set.forEach(s => ns.scan(s).forEach(n => set.add(n)));
+        return Array.from(set);
     };
 
     while (true) {
         let allServers = getAllServers();
-        let crackedServers = allServers.filter(s => ns.hasRootAccess(s));
+        let rootServers = allServers.filter(s => ns.hasRootAccess(s));
 
-        let networkMaxRam = 0;
-        let networkUsedRam = 0;
+        let totalMaxRam = 0;
+        let totalUsedRam = 0;
 
-        // Collect servers that actually have money to steal
-        let validTargets = crackedServers.filter(s => ns.getServerMaxMoney(s) > 0);
+        // Collect all relevant targets
+        let targets = rootServers.filter(s => ns.getServerMaxMoney(s) > 0);
 
-        // Sort targets by current value (Balance vs. Max Money)
-        validTargets.sort((a, b) => {
-            let scoreA = ns.getServerMaxMoney(a) * (ns.getServerMoneyAvailable(a) / ns.getServerMaxMoney(a));
-            let scoreB = ns.getServerMaxMoney(b) * (ns.getServerMoneyAvailable(b) / ns.getServerMaxMoney(b));
-            return scoreB - scoreA;
+        // Sort targets by "Value + State"
+        targets.sort((a, b) => {
+            let aScore = ns.getServerMaxMoney(a) * (ns.getServerMoneyAvailable(a) / ns.getServerMaxMoney(a));
+            let bScore = ns.getServerMaxMoney(b) * (ns.getServerMoneyAvailable(b) / ns.getServerMaxMoney(b));
+            return bScore - aScore;
         });
 
-        for (let host of crackedServers) {
+        for (let host of rootServers) {
             let maxRam = ns.getServerMaxRam(host);
             let usedRam = ns.getServerUsedRam(host);
 
-            networkMaxRam += maxRam;
-            networkUsedRam += usedRam;
+            totalMaxRam += maxRam;
+            totalUsedRam += usedRam;
 
-            let availableRam = maxRam - usedRam;
-            if (host === "home") availableRam -= HOME_RESERVE_RAM;
+            let freeRam = maxRam - usedRam;
+            if (host === "home") freeRam -= HOME_RESERVE;
+            if (freeRam < 1.75) continue;
+
+            let threads = Math.floor(freeRam / 1.75);
             
-            // Skip if not enough RAM for a single basic hack script (1.75GB)
-            if (availableRam < 1.75) continue;
+            // Choose target for this host
+            let target = targets[0]; 
 
-            let totalThreads = Math.floor(availableRam / 1.75);
-
-            // Primary strategy: Target the most profitable server
-            let primaryTarget = validTargets[0];
-
-            // If it's a weak local server (not a purchased one), let it hack itself
+            // Small servers work on themselves
             if (!host.startsWith("serv-") && host !== "home") {
-                primaryTarget = host;
+                target = host;
             }
 
-            let maxMoney = ns.getServerMaxMoney(primaryTarget);
-            let currentMoney = ns.getServerMoneyAvailable(primaryTarget);
-            let minSecurity = ns.getServerMinSecurityLevel(primaryTarget);
-            let currentSecurity = ns.getServerSecurityLevel(primaryTarget);
+            let tMax = ns.getServerMaxMoney(target);
+            let tCur = ns.getServerMoneyAvailable(target);
+            let tMin = ns.getServerMinSecurityLevel(target);
+            let tSec = ns.getServerSecurityLevel(target);
 
-            // STABILITY LOGIC: Lower security first
-            if (currentSecurity > minSecurity + 1) {
-                ns.exec("weaken.js", host, totalThreads, primaryTarget);
+            // STABILITY LOGIC
+            if (tSec > tMin + 1) {
+                ns.exec("weaken.js", host, threads, target);
                 continue;
             }
 
-            // GROWTH LOGIC: Refill money if below 75%
-            if (currentMoney < maxMoney * 0.75) {
-                ns.exec("grow.js", host, totalThreads, primaryTarget);
+            if (tCur < tMax * 0.75) {
+                ns.exec("grow.js", host, threads, target);
                 continue;
             }
 
-            // CONTROLLED HACKING: Steal approx 5% to avoid draining it
-            let hackThreads = Math.floor(ns.hackAnalyzeThreads(primaryTarget, currentMoney * 0.05));
+            // CONTROLLED HACKING (MAX 5%)
+            let hackThreads = Math.floor(ns.hackAnalyzeThreads(target, tCur * 0.05));
 
             if (hackThreads < 1) hackThreads = 1;
-            if (hackThreads > totalThreads) hackThreads = totalThreads;
+            if (hackThreads > threads) hackThreads = threads;
 
-            ns.exec("hack.js", host, hackThreads, primaryTarget);
+            ns.exec("hack.js", host, hackThreads, target);
 
-            // Use leftover threads on the same host to keep security low
-            let remainingThreads = totalThreads - hackThreads;
-            if (remainingThreads > 0) {
-                ns.exec("weaken.js", host, remainingThreads, primaryTarget);
+            let remaining = threads - hackThreads;
+
+            if (remaining > 0) {
+                ns.exec("weaken.js", host, remaining, target);
             }
         }
 
-        // UI Dashboard
+        // Dashboard in Log Window
         ns.clearLog();
-        ns.print(`--- NETWORK MONITOR ---`);
-        ns.print(`TARGETS AVAILABLE:  ${validTargets.length}`);
+        ns.print(`--- TITAN RUNNING ---`);
+        ns.print(`TARGETS:      ${targets.length}`);
         ns.print(`----------------------------------`);
-        ns.print(`NETWORK RAM: ${ns.formatRam(networkUsedRam)} / ${ns.formatRam(networkMaxRam)}`);
-        ns.print(`ROOT ACCESSES: ${crackedServers.length}`);
+        ns.print(`NETWORK RAM:  ${ns.formatRam(totalUsedRam)} / ${ns.formatRam(totalMaxRam)}`);
+        ns.print(`ROOT ACCESS:  ${rootServers.length}`);
 
-        await ns.sleep(SLEEP_TIME);
+        await ns.sleep(BUFFER);
     }
 }
