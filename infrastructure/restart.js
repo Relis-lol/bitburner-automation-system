@@ -1,7 +1,7 @@
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
-    ns.tail(); 
+    ns.ui.openTail(); 
 
     const PREP_SCRIPT = "prep-all.js";
     const HGW_SCRIPT = "apex-hwgw.js";
