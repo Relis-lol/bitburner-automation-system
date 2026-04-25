@@ -1,0 +1,223 @@
+import { setLock, clearLock, isLocked } from "lock-manager.js";
+
+/** @param {NS} ns **/
+export async function main(ns) {
+  ns.disableLog("ALL");
+  ns.ui.openTail();
+
+  const CFG = {
+    TARGET_SERVER: "omega-net",
+    TARGET_STOCK: "OMGA",
+
+    HACK_SCRIPT: "stock-hack.js",
+    GROW_SCRIPT: "stock-grow.js",
+    WEAKEN_SCRIPT: "weaken2.js",
+
+    OWNER: "market-controller",
+    TTL: 30000,
+    REFRESH_MS: 5000,
+    HOME_RESERVE_GB: 75,
+
+    MONEY_HIGH: 0.95,
+    MONEY_LOW: 0.15,
+    SEC_BUFFER: 3.0,
+
+    HACK_FRACTION: 0.25,
+    GROW_BUFFER: 1.30,
+    WEAKEN_BUFFER: 1.30,
+
+    LONG_BUY: 0.60,
+    LONG_SELL: 0.54,
+    SHORT_BUY: 0.40,
+    SHORT_SELL: 0.46,
+  };
+
+  // atExit cleanup
+  ns.atExit(() => {
+    clearLock(ns, CFG.TARGET_SERVER, CFG.OWNER);
+    clearLock(ns, CFG.TARGET_STOCK, CFG.OWNER);
+  });
+
+  // Short test
+  const shortsEnabled = (() => {
+    try { ns.stock.shortStock(CFG.TARGET_STOCK, 0); return true; } 
+    catch { return false; }
+  })();
+
+  ns.tprint(`🚫 Market Controller active: ${CFG.TARGET_SERVER} / ${CFG.TARGET_STOCK}`);
+  ns.tprint(`PHASE 4: Manipulation + auto-trading. Shorts: ${shortsEnabled ? "ENABLED" : "DISABLED"}`);
+
+  let mode = "DUMP";
+
+  while (true) {
+    // Locks
+    setLock(ns, CFG.TARGET_SERVER, CFG.OWNER, CFG.TTL, { type: "server", stock: CFG.TARGET_STOCK });
+    setLock(ns, CFG.TARGET_STOCK, CFG.OWNER, CFG.TTL, { type: "stock", server: CFG.TARGET_SERVER });
+
+    const state = getState(ns, CFG);
+    const hosts = getUsableHosts(ns, CFG.HOME_RESERVE_GB);
+
+    // Security first
+    if (state.secGap > CFG.SEC_BUFFER) {
+      const weakenThreads = Math.ceil(state.secGap / ns.weakenAnalyze(1) * CFG.WEAKEN_BUFFER);
+      runDistributed(ns, hosts, CFG.WEAKEN_SCRIPT, CFG.TARGET_SERVER, 0, weakenThreads, CFG.HOME_RESERVE_GB, "mc-weaken");
+      printStatus(ns, CFG, state, mode, `WEAKEN ${weakenThreads}`);
+      await ns.sleep(CFG.REFRESH_MS);
+      continue;
+    }
+
+    // Manipulation: Dump / Pump
+    if (mode === "DUMP") {
+      if (state.moneyRatio <= CFG.MONEY_LOW) mode = "PUMP";
+      else {
+        const hackThreads = calcHackThreads(ns, CFG.TARGET_SERVER, CFG.HACK_FRACTION);
+        const weakenThreads = Math.ceil(ns.hackAnalyzeSecurity(hackThreads, CFG.TARGET_SERVER) / ns.weakenAnalyze(1) * CFG.WEAKEN_BUFFER);
+
+        runDistributed(ns, hosts, CFG.HACK_SCRIPT, CFG.TARGET_SERVER, 0, hackThreads, CFG.HOME_RESERVE_GB, "mc-dump-stock", true);
+        runDistributed(ns, hosts, CFG.WEAKEN_SCRIPT, CFG.TARGET_SERVER, ns.getHackTime(CFG.TARGET_SERVER) + 200, weakenThreads, CFG.HOME_RESERVE_GB, "mc-dump-weaken");
+
+        // Auto-trading
+        if (!isLocked(ns, CFG.TARGET_STOCK)) tryBuy(ns, CFG.TARGET_STOCK, CFG.LONG_BUY, CFG.LONG_SELL);
+        if (shortsEnabled && !isLocked(ns, CFG.TARGET_STOCK)) tryShort(ns, CFG.TARGET_STOCK, CFG.SHORT_BUY, CFG.SHORT_SELL);
+
+        printStatus(ns, CFG, state, mode, `STOCK-HACK ${hackThreads}`);
+      }
+    }
+
+    if (mode === "PUMP") {
+      if (state.moneyRatio >= CFG.MONEY_HIGH) mode = "DUMP";
+      else {
+        const growThreads = calcGrowThreads(ns, CFG.TARGET_SERVER, state.money, state.maxMoney * CFG.MONEY_HIGH, CFG.GROW_BUFFER);
+        const weakenThreads = Math.ceil(ns.growthAnalyzeSecurity(growThreads, CFG.TARGET_SERVER) / ns.weakenAnalyze(1) * CFG.WEAKEN_BUFFER);
+
+        runDistributed(ns, hosts, CFG.GROW_SCRIPT, CFG.TARGET_SERVER, 0, growThreads, CFG.HOME_RESERVE_GB, "mc-pump-stock", true);
+        runDistributed(ns, hosts, CFG.WEAKEN_SCRIPT, CFG.TARGET_SERVER, ns.getGrowTime(CFG.TARGET_SERVER) + 200, weakenThreads, CFG.HOME_RESERVE_GB, "mc-pump-weaken");
+
+        // Auto-trading
+        if (!isLocked(ns, CFG.TARGET_STOCK)) tryBuy(ns, CFG.TARGET_STOCK, CFG.LONG_BUY, CFG.LONG_SELL);
+        if (shortsEnabled && !isLocked(ns, CFG.TARGET_STOCK)) tryShort(ns, CFG.TARGET_STOCK, CFG.SHORT_BUY, CFG.SHORT_SELL);
+
+        printStatus(ns, CFG, state, mode, `STOCK-GROW ${growThreads}`);
+      }
+    }
+
+    await ns.sleep(CFG.REFRESH_MS);
+  }
+}
+
+// ----------------- Helper Trading Functions -----------------
+function tryBuy(ns, sym, buyThresh, sellThresh) {
+  const [longShares, longAvg] = ns.stock.getPosition(sym);
+  const price = ns.stock.getPrice(sym);
+  const forecast = ns.stock.getForecast(sym);
+
+  if (forecast >= buyThresh && longShares === 0) {
+    const maxShares = ns.stock.getMaxShares(sym);
+    const shares = Math.min(maxShares, Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price));
+    if (shares > 0) ns.stock.buyStock(sym, shares);
+  } else if (longShares > 0 && forecast <= sellThresh) {
+    ns.stock.sellStock(sym, longShares);
+  }
+}
+
+function tryShort(ns, sym, buyThresh, sellThresh) {
+  const [, , shortShares] = ns.stock.getPosition(sym);
+  const price = ns.stock.getPrice(sym);
+  const forecast = ns.stock.getForecast(sym);
+
+  if (forecast <= buyThresh && shortShares === 0) {
+    const maxShares = ns.stock.getMaxShares(sym);
+    const shares = Math.min(maxShares, Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price));
+    if (shares > 0) ns.stock.shortStock(sym, shares);
+  } else if (shortShares > 0 && forecast >= sellThresh) {
+    ns.stock.sellShort(sym, shortShares);
+  }
+}
+
+// ----------------- Rest: Controller Helpers -----------------
+function getState(ns, CFG) {
+  const money = ns.getServerMoneyAvailable(CFG.TARGET_SERVER);
+  const maxMoney = ns.getServerMaxMoney(CFG.TARGET_SERVER);
+  const sec = ns.getServerSecurityLevel(CFG.TARGET_SERVER);
+  const minSec = ns.getServerMinSecurityLevel(CFG.TARGET_SERVER);
+  const forecast = ns.stock.getForecast(CFG.TARGET_STOCK);
+  const price = ns.stock.getPrice(CFG.TARGET_STOCK);
+
+  return {
+    money, maxMoney,
+    moneyRatio: maxMoney > 0 ? money / maxMoney : 0,
+    sec, minSec,
+    secGap: sec - minSec,
+    forecast, price
+  };
+}
+
+function printStatus(ns, CFG, state, mode, action) {
+  ns.clearLog();
+  ns.print("=== MARKET CONTROLLER PHASE 4 ===");
+  ns.print(`Server : ${CFG.TARGET_SERVER}`);
+  ns.print(`Stock  : ${CFG.TARGET_STOCK}`);
+  ns.print(`Mode   : ${mode}`);
+  ns.print(`Action : ${action}`);
+  ns.print(`Money  : ${(state.moneyRatio*100).toFixed(2)}%`);
+  ns.print(`SecGap : ${state.secGap.toFixed(3)}`);
+  ns.print(`Forecast: ${state.forecast.toFixed(3)}`);
+  ns.print(`Price  : ${ns.formatNumber(state.price)}`);
+}
+
+function calcHackThreads(ns, target, fraction) {
+  const perThread = ns.hackAnalyze(target);
+  return Math.max(1, Math.floor(fraction / (perThread || 0.001)));
+}
+
+function calcGrowThreads(ns, target, currentMoney, targetMoney, buffer) {
+  const cur = Math.max(1, currentMoney);
+  const goal = Math.max(cur, targetMoney);
+  if (goal <= cur) return 0;
+  return Math.max(1, Math.ceil(ns.growthAnalyze(target, goal / cur) * buffer));
+}
+
+function getAllServers(ns) {
+  const found = new Set(["home"]);
+  const queue = ["home"];
+  while(queue.length>0){
+    const cur = queue.shift();
+    for(const next of ns.scan(cur)){
+      if(!found.has(next)){
+        found.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return [...found];
+}
+
+function getUsableHosts(ns, homeReserveGb){
+  return getAllServers(ns)
+    .filter(h=>ns.hasRootAccess(h))
+    .filter(h=>ns.getServerMaxRam(h)>0)
+    .map(h=>{
+      const reserve = h==="home"?homeReserveGb:0;
+      return { name:h, freeRam:Math.max(0, ns.getServerMaxRam(h)-ns.getServerUsedRam(h)-reserve) };
+    })
+    .filter(h=>h.freeRam>2)
+    .sort((a,b)=>b.freeRam-a.freeRam);
+}
+
+function runDistributed(ns, hosts, script, target, delay, totalThreads, homeReserveGb, tag, stock=false){
+  let remaining = totalThreads;
+  const ram = ns.getScriptRam(script,"home");
+  if(ram<=0||remaining<=0) return false;
+
+  for(const h of hosts){
+    if(remaining<=0) break;
+    const reserve = h.name==="home"?homeReserveGb:0;
+    const free = Math.max(0, ns.getServerMaxRam(h.name)-ns.getServerUsedRam(h.name)-reserve);
+    const threads = Math.min(Math.floor(free/ram), remaining);
+    if(threads>0){
+      const pid = ns.exec(script,h.name,threads,target,delay,tag,stock);
+      if(pid!==0) remaining-=threads;
+    }
+  }
+  return remaining<=0;
+}
