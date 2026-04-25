@@ -31,6 +31,7 @@ Core responsibilities:
 - real-time monitoring
 - XP optimization system
 - stock trading via 4S API
+- small utility tools for reset and progression support
 
 ---
 
@@ -83,10 +84,35 @@ Long-only trading system
 - uses 4S Market Data API
 - risk-controlled position management
 
+### stock-trader-shorts.js
+Advanced stock trading system
+- supports long and short positions
+- forecast-based entries and exits
+- risk-controlled position sizing
+- requires 4S Market Data API
+- short trading requires the related unlock
+
+---
+
+## Utilities
+
+### stats.js
+Monitoring utility
+- shows RAM usage, server status, and income
+
 ### trade-sellout.js
 Reset utility
-- liquidates all stock positions (long & short)
-- ensures clean exit before reset
+- liquidates all stock positions before reset
+- closes both long and short positions
+
+### notes.js
+Reference utility
+- shows key faction servers for progression
+
+### backdoors.js / backdoorsscan.js / path.js
+Access helpers
+- install or identify backdoors
+- generate connection paths
 
 ---
 
