@@ -1,3 +1,5 @@
+import { isLocked } from "lock-manager.js";
+
 /** @param {NS} ns **/
 export async function main(ns) {
   ns.disableLog("ALL");
@@ -16,6 +18,11 @@ export async function main(ns) {
     MIN_TRADE_VALUE: 1_000_000,
   };
 
+  const log = (msg) => {
+    const time = new Date().toLocaleTimeString();
+    ns.tprint(`[${time}] ${msg}`);
+  };
+
   try {
     ns.stock.getForecast(ns.stock.getSymbols()[0]);
   } catch {
@@ -24,27 +31,29 @@ export async function main(ns) {
   }
 
   const shortsEnabled = canShort(ns);
-  ns.tprint(`Fast Stock Trader started. Shorts: ${shortsEnabled ? "ENABLED" : "DISABLED"}`);
+  log(`Fast Stock Trader started. Shorts: ${shortsEnabled ? "ENABLED" : "DISABLED"}`);
 
   const symbols = ns.stock.getSymbols();
 
   while (true) {
     await ns.stock.nextUpdate();
 
-    const data = symbols.map(sym => {
-      const [longShares, longAvg, shortShares, shortAvg] = ns.stock.getPosition(sym);
+    const data = symbols
+      .filter(sym => !isLocked(ns, sym))
+      .map(sym => {
+        const [longShares, longAvg, shortShares, shortAvg] = ns.stock.getPosition(sym);
 
-      return {
-        sym,
-        forecast: ns.stock.getForecast(sym),
-        price: ns.stock.getPrice(sym),
-        maxShares: ns.stock.getMaxShares(sym),
-        longShares,
-        longAvg,
-        shortShares,
-        shortAvg,
-      };
-    });
+        return {
+          sym,
+          forecast: ns.stock.getForecast(sym),
+          price: ns.stock.getPrice(sym),
+          maxShares: ns.stock.getMaxShares(sym),
+          longShares,
+          longAvg,
+          shortShares,
+          shortAvg,
+        };
+      });
 
     // SELL LONGS / COVER SHORTS
     for (const s of data) {
@@ -53,7 +62,7 @@ export async function main(ns) {
         if (price > 0) {
           const value = price * s.longShares;
           const profit = value - s.longAvg * s.longShares;
-          ns.tprint(`💰 SOLD LONG ${s.sym}: ${ns.formatNumber(value)} | Profit: ${ns.formatNumber(profit)}`);
+          log(`💰 SOLD LONG ${s.sym}: ${ns.formatNumber(value)} | Profit: ${ns.formatNumber(profit)}`);
         }
       }
 
@@ -62,7 +71,7 @@ export async function main(ns) {
         if (price > 0) {
           const value = price * s.shortShares;
           const profit = s.shortAvg * s.shortShares - value;
-          ns.tprint(`💰 COVERED SHORT ${s.sym}: ${ns.formatNumber(value)} | Profit: ${ns.formatNumber(profit)}`);
+          log(`💰 COVERED SHORT ${s.sym}: ${ns.formatNumber(value)} | Profit: ${ns.formatNumber(profit)}`);
         }
       }
     }
@@ -94,13 +103,13 @@ export async function main(ns) {
         const price = ns.stock.buyStock(s.sym, shares);
         if (price > 0) {
           held++;
-          ns.tprint(`📈 BOUGHT LONG ${s.sym}: ${ns.formatNumber(shares * price)} | F:${s.forecast.toFixed(3)}`);
+          log(`📈 BOUGHT LONG ${s.sym}: ${ns.formatNumber(shares * price)} | F:${s.forecast.toFixed(3)}`);
         }
       } else if (shortsEnabled && s.forecast <= CFG.SHORT_BUY) {
         const price = ns.stock.shortStock(s.sym, shares);
         if (price > 0) {
           held++;
-          ns.tprint(`📉 OPENED SHORT ${s.sym}: ${ns.formatNumber(shares * price)} | F:${s.forecast.toFixed(3)}`);
+          log(`📉 OPENED SHORT ${s.sym}: ${ns.formatNumber(shares * price)} | F:${s.forecast.toFixed(3)}`);
         }
       }
     }
