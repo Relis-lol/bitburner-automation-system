@@ -79,11 +79,6 @@ XP farming system
 - optimized for long-term leveling
 - requires manual tuning depending on network size
 
-### stock-trader.js
-Long-only trading system
-- uses 4S Market Data API
-- risk-controlled position management
-
 ### stock-trader-shorts.js
 Advanced stock trading system
 - supports long and short positions
