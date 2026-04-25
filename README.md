@@ -16,7 +16,7 @@ Core responsibilities:
 - distributed execution
 - monitoring
 - XP farming
-- optional stock trading
+- optional stock trading and market manipulation
 
 ---
 
@@ -31,7 +31,9 @@ Core responsibilities:
 - real-time monitoring
 - XP optimization system
 - stock trading via 4S API
+- market manipulation with automated buy/sell + long/short
 - small utility tools for reset and progression support
+- lock system for resource coordination
 
 ---
 
@@ -87,9 +89,25 @@ Advanced stock trading system
 - requires 4S Market Data API
 - short trading requires the related unlock
 
+### market-controller.js
+Market manipulation and trading orchestrator
+- automated buy/sell for long and short positions
+- integrates stock-hack.js and stock-grow.js workers
+- dynamic server money ratio handling (DUMP / PUMP cycles)
+- security-aware execution with distributed weaken threads
+- lock-based coordination to avoid double actions
+- fully automated: monitors server, executes hacks/grows, trades
+
 ---
 
 ## Utilities
+
+### lock-manager.js
+Resource lock system
+- read, write, refresh, clear locks
+- TTL-based expiration
+- prevents overlapping actions on servers or stocks
+- used by market-controller.js and other distributed scripts
 
 ### stats.js
 Monitoring utility
@@ -116,6 +134,7 @@ Access helpers
 Execution layer:
 - hack.js / grow.js / weaken.js
 - hack2.js / grow2.js / weaken2.js (batch-compatible, delayed execution)
+- stock-hack.js / stock-grow.js (used by market-controller.js for automated market manipulation)
 
 ---
 
@@ -127,6 +146,7 @@ Execution layer:
 - RAM-aware scheduling
 - modular architecture
 - scalable to very large environments
+- coordinated stock & server operations with lock system
 
 ---
 
@@ -138,9 +158,10 @@ This project demonstrates:
 - automation architecture
 - performance optimization
 - iterative system evolution
+- stock trading & market manipulation orchestration
 
 ---
 
 ## Status
 
-Active side project focused on automation and system design.
+Active side project focused on automation and system design, now including advanced market control features.
