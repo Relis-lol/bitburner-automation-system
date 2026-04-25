@@ -6,136 +6,91 @@ Automation system built in the programming game *Bitburner*.
 
 ## Overview
 
-This project evolved from simple scripts into a distributed automation system for large-scale Bitburner networks.
+This project evolved from simple scripts into a scalable automation system capable of handling large networks (TB → PB range).
 
 Core responsibilities:
 
-- infrastructure management
-- HWGW orchestration
-- worker execution
+- network preparation
+- profit orchestration (HWGW)
+- infrastructure automation
+- distributed execution
 - monitoring
-- XP grinding
+- XP farming
 - optional stock trading
 
 ---
 
-## Core Features
+## Features
 
 - automatic target discovery and scoring
+- full-network prep before profit runs
 - coordinated HWGW batch execution
 - distributed workload across rooted servers
-- RAM-aware scaling and scheduling
-- automated server purchasing and upgrades
+- RAM-aware scaling
+- automated server purchasing and upgrading
 - real-time monitoring
-- dedicated XP farming
-- optional stock trading with 4S API
+- XP optimization system
+- stock trading (4S API)
 
 ---
 
-## Architecture
+## Core Components
 
-### Infrastructure
+### apex-hwgw.js
+Main profit engine  
+- HWGW batching  
+- multi-target scheduling  
+- RAM-aware execution  
+- prep + profit integration  
 
-- **infra-manager.js**  
-  Network scan, rooting, script deployment, server buying and upgrades.
+### prep-all.js
+Full-network preparation  
+- reduces security to minimum  
+- grows money to ~99%  
+- exits automatically when done  
 
----
+### infra-manager.js
+Infrastructure automation  
+- network scan  
+- rooting  
+- script deployment  
+- server upgrades  
 
-### Orchestration
+### restart.js
+Execution gatekeeper  
+- waits for prep phase  
+- launches main engine automatically  
 
-- **apex-hwgw.js** ⭐  
-  Main HWGW profit engine.
+### xp-grinder.js
+XP farming system  
+- consumes a configurable share of total network RAM  
+- optimized for long-term leveling  
+- ⚠ requires manual tuning depending on network size and goals  
 
-  Features:
-  - multi-target batching
-  - prep logic
-  - RAM-aware batch sizing
-  - distributed execution
-  - timing and concurrency control
-
----
-
-### Workers
-
-- **hack2.js / grow2.js / weaken2.js** – delay-compatible batch workers
-- **hack.js / grow.js / weaken.js** – simple legacy workers
-
----
-
-### XP
-
-- **xp-grinder.js**  
-  Dedicated hacking XP grinder using `weaken2.js` against `joesguns`.
-
-  Features:
-  - configurable RAM quota
-  - network-wide deployment
-  - home RAM reserve
-  - safe worker detection
+### stock-trader.js
+Long-only trading system  
+- uses 4S API  
+- risk-limited portfolio  
 
 ---
 
-### Trading
+## Workers
 
-- **stock-trader.js**  
-  Long-only stock trader using 4S Market Data.
+Execution layer:
 
-  Features:
-  - forecast-based entries and exits
-  - position limits
-  - reserve budget
-  - capped capital allocation
-
----
-
-### Monitoring
-
-- **stats.js**  
-  Live overview for RAM usage, server status, and income.
-
----
-
-### Access Tools
-
-- **backdoors.js** – automatic backdoor installation
-- **backdoorsscan.js** – lists possible backdoor targets
-- **path.js** – generates connection paths
-
----
-
-### Legacy
-
-Older systems kept for reference:
-
-- adaptive-batch-orchestrator.js
-- apex-batcher.js
-- titan.js
-- GM-series
-- basic_hack.js
-- script_update.js
-
----
-
-## RAM Usage
-
-| Script            | RAM |
-|------------------|----:|
-| stock-trader.js  | 18.2 GB |
-| apex-hwgw.js     | 10.75 GB |
-| infra-manager.js | 9.5 GB |
-| xp-grinder.js    | 3.55 GB + depends on quota |
-| stats.js         | 4.25 GB |
-| workers (each)   | 1.75 GB |
+- hack / grow / weaken  
+- batch-compatible versions (hack2 / grow2 / weaken2)
 
 ---
 
 ## Design Principles
 
-- one active profit orchestrator
-- distributed execution
-- RAM-aware scheduling
-- modular systems
-- scalable from GB/TB to PB networks
+- one active orchestrator at a time  
+- prep before profit  
+- distributed execution  
+- RAM-aware scheduling  
+- modular architecture  
+- scalable to very large networks  
 
 ---
 
@@ -143,14 +98,14 @@ Older systems kept for reference:
 
 This project demonstrates:
 
-- automation design
-- distributed scheduling
-- resource optimization
-- system monitoring
-- iterative performance tuning
+- distributed system design  
+- resource scheduling  
+- automation logic  
+- performance optimization  
+- iterative system evolution  
 
 ---
 
 ## Status
 
-Active side project focused on automation, optimization, and system design.
+Active side project focused on automation and system design.
