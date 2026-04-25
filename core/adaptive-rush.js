@@ -127,18 +127,10 @@ async function handoffToMainSystem(ns, CFG) {
   ns.killall("home", true);
 
   // STARTUP SCRIPTS - EDIT THESE SCRIPT NAMES IF NEEDED
-  // STARTUP ORDER: infra-manager.js, stats.js, prep-all.js, restart.js
-
-  ns.run("infra-manager.js", 1);
-  await ns.sleep(500);
-
-  ns.run("stats.js", 1);
-  await ns.sleep(500);
+  // 
 
   ns.run("prep-all.js", 1);
   await ns.sleep(500);
-
-  ns.run("restart.js", 1);
 
   ns.tprint("Main system started. Adaptive rush stopping now.");
 }
