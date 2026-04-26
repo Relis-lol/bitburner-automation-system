@@ -1,4 +1,4 @@
-import { setLock, clearLock, isLocked } from "lock-manager.js";
+import { setLock, clearLock, getLock } from "lock-manager.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -19,6 +19,7 @@ export async function main(ns) {
     HOME_RESERVE_GB: 75,
 
     MIN_FREE_RAM_GB: 1000000, // 1 PB free RAM required before activation
+    TRADE_COMMISSION: 100000,
 
     MONEY_HIGH: 0.95,
     MONEY_LOW: 0.15,
@@ -32,6 +33,13 @@ export async function main(ns) {
     LONG_SELL: 0.54,
     SHORT_BUY: 0.40,
     SHORT_SELL: 0.46,
+  };
+
+  const tradeTracker = {
+    long: {},
+    short: {},
+    totalLongProfit: 0,
+    totalShortProfit: 0,
   };
 
   // ----------------- ACCESS GATE -----------------
@@ -49,6 +57,7 @@ export async function main(ns) {
 
   while (getTotalFreeRam(ns, CFG.HOME_RESERVE_GB) < CFG.MIN_FREE_RAM_GB) {
     const freeRam = getTotalFreeRam(ns, CFG.HOME_RESERVE_GB);
+
     ns.clearLog();
     ns.print("=== MARKET CONTROLLER WAITING ===");
     ns.print(`Target Server : ${CFG.TARGET_SERVER}`);
@@ -56,18 +65,19 @@ export async function main(ns) {
     ns.print(`Required RAM  : ${ns.formatRam(CFG.MIN_FREE_RAM_GB)}`);
     ns.print(`Free RAM      : ${ns.formatRam(freeRam)}`);
     ns.print(`Missing RAM   : ${ns.formatRam(Math.max(0, CFG.MIN_FREE_RAM_GB - freeRam))}`);
+
     await ns.sleep(CFG.REFRESH_MS);
   }
 
   ns.tprint(`✅ Enough free RAM detected. Starting Market Controller.`);
 
-  // atExit cleanup
+  // ----------------- EXIT CLEANUP -----------------
   ns.atExit(() => {
     clearLock(ns, CFG.TARGET_SERVER, CFG.OWNER);
     clearLock(ns, CFG.TARGET_STOCK, CFG.OWNER);
   });
 
-  // Short test
+  // ----------------- SHORT TEST -----------------
   const shortsEnabled = (() => {
     try {
       ns.stock.shortStock(CFG.TARGET_STOCK, 0);
@@ -83,54 +93,136 @@ export async function main(ns) {
   let mode = "DUMP";
 
   while (true) {
-    // Locks
-    setLock(ns, CFG.TARGET_SERVER, CFG.OWNER, CFG.TTL, { type: "server", stock: CFG.TARGET_STOCK });
-    setLock(ns, CFG.TARGET_STOCK, CFG.OWNER, CFG.TTL, { type: "stock", server: CFG.TARGET_SERVER });
+    // Renew locks every loop
+    setLock(ns, CFG.TARGET_SERVER, CFG.OWNER, CFG.TTL, {
+      type: "server",
+      stock: CFG.TARGET_STOCK,
+    });
+
+    setLock(ns, CFG.TARGET_STOCK, CFG.OWNER, CFG.TTL, {
+      type: "stock",
+      server: CFG.TARGET_SERVER,
+    });
 
     const state = getState(ns, CFG);
     const hosts = getUsableHosts(ns, CFG.HOME_RESERVE_GB, CFG);
 
-    // Security first
-    if (state.secGap > CFG.SEC_BUFFER) {
-      const weakenThreads = Math.ceil((state.secGap / ns.weakenAnalyze(1)) * CFG.WEAKEN_BUFFER);
-      runDistributed(ns, hosts, CFG.WEAKEN_SCRIPT, CFG.TARGET_SERVER, 0, weakenThreads, CFG.HOME_RESERVE_GB, "mc-weaken");
-      printStatus(ns, CFG, state, mode, `WEAKEN ${weakenThreads}`);
+    // If another script somehow owns the lock, do nothing
+    if (
+      isLockedByOther(ns, CFG.TARGET_SERVER, CFG.OWNER) ||
+      isLockedByOther(ns, CFG.TARGET_STOCK, CFG.OWNER)
+    ) {
+      ns.print("Target locked by another owner. Waiting...");
       await ns.sleep(CFG.REFRESH_MS);
       continue;
     }
 
-    // Manipulation: Dump / Pump
+    // Security first
+    if (state.secGap > CFG.SEC_BUFFER) {
+      const weakenThreads = Math.ceil((state.secGap / ns.weakenAnalyze(1)) * CFG.WEAKEN_BUFFER);
+
+      runDistributed(
+        ns,
+        hosts,
+        CFG.WEAKEN_SCRIPT,
+        CFG.TARGET_SERVER,
+        0,
+        weakenThreads,
+        CFG.HOME_RESERVE_GB,
+        "mc-weaken"
+      );
+
+      printStatus(ns, CFG, state, mode, `WEAKEN ${weakenThreads}`, tradeTracker);
+      await ns.sleep(CFG.REFRESH_MS);
+      continue;
+    }
+
+    // ----------------- DUMP MODE -----------------
     if (mode === "DUMP") {
       if (state.moneyRatio <= CFG.MONEY_LOW) {
         mode = "PUMP";
       } else {
         const hackThreads = calcHackThreads(ns, CFG.TARGET_SERVER, CFG.HACK_FRACTION);
-        const weakenThreads = Math.ceil((ns.hackAnalyzeSecurity(hackThreads, CFG.TARGET_SERVER) / ns.weakenAnalyze(1)) * CFG.WEAKEN_BUFFER);
+        const weakenThreads = Math.ceil(
+          (ns.hackAnalyzeSecurity(hackThreads, CFG.TARGET_SERVER) / ns.weakenAnalyze(1)) *
+          CFG.WEAKEN_BUFFER
+        );
 
-        runDistributed(ns, hosts, CFG.HACK_SCRIPT, CFG.TARGET_SERVER, 0, hackThreads, CFG.HOME_RESERVE_GB, "mc-dump-stock", true);
-        runDistributed(ns, hosts, CFG.WEAKEN_SCRIPT, CFG.TARGET_SERVER, ns.getHackTime(CFG.TARGET_SERVER) + 200, weakenThreads, CFG.HOME_RESERVE_GB, "mc-dump-weaken");
+        runDistributed(
+          ns,
+          hosts,
+          CFG.HACK_SCRIPT,
+          CFG.TARGET_SERVER,
+          0,
+          hackThreads,
+          CFG.HOME_RESERVE_GB,
+          "mc-dump-stock",
+          true
+        );
 
-        if (!isLocked(ns, CFG.TARGET_STOCK)) tryBuy(ns, CFG.TARGET_STOCK, CFG.LONG_BUY, CFG.LONG_SELL);
-        if (shortsEnabled && !isLocked(ns, CFG.TARGET_STOCK)) tryShort(ns, CFG.TARGET_STOCK, CFG.SHORT_BUY, CFG.SHORT_SELL);
+        runDistributed(
+          ns,
+          hosts,
+          CFG.WEAKEN_SCRIPT,
+          CFG.TARGET_SERVER,
+          ns.getHackTime(CFG.TARGET_SERVER) + 200,
+          weakenThreads,
+          CFG.HOME_RESERVE_GB,
+          "mc-dump-weaken"
+        );
 
-        printStatus(ns, CFG, state, mode, `STOCK-HACK ${hackThreads}`);
+        tryBuy(ns, CFG, tradeTracker);
+        if (shortsEnabled) tryShort(ns, CFG, tradeTracker);
+
+        printStatus(ns, CFG, state, mode, `STOCK-HACK ${hackThreads}`, tradeTracker);
       }
     }
 
+    // ----------------- PUMP MODE -----------------
     if (mode === "PUMP") {
       if (state.moneyRatio >= CFG.MONEY_HIGH) {
         mode = "DUMP";
       } else {
-        const growThreads = calcGrowThreads(ns, CFG.TARGET_SERVER, state.money, state.maxMoney * CFG.MONEY_HIGH, CFG.GROW_BUFFER);
-        const weakenThreads = Math.ceil((ns.growthAnalyzeSecurity(growThreads, CFG.TARGET_SERVER) / ns.weakenAnalyze(1)) * CFG.WEAKEN_BUFFER);
+        const growThreads = calcGrowThreads(
+          ns,
+          CFG.TARGET_SERVER,
+          state.money,
+          state.maxMoney * CFG.MONEY_HIGH,
+          CFG.GROW_BUFFER
+        );
 
-        runDistributed(ns, hosts, CFG.GROW_SCRIPT, CFG.TARGET_SERVER, 0, growThreads, CFG.HOME_RESERVE_GB, "mc-pump-stock", true);
-        runDistributed(ns, hosts, CFG.WEAKEN_SCRIPT, CFG.TARGET_SERVER, ns.getGrowTime(CFG.TARGET_SERVER) + 200, weakenThreads, CFG.HOME_RESERVE_GB, "mc-pump-weaken");
+        const weakenThreads = Math.ceil(
+          (ns.growthAnalyzeSecurity(growThreads, CFG.TARGET_SERVER) / ns.weakenAnalyze(1)) *
+          CFG.WEAKEN_BUFFER
+        );
 
-        if (!isLocked(ns, CFG.TARGET_STOCK)) tryBuy(ns, CFG.TARGET_STOCK, CFG.LONG_BUY, CFG.LONG_SELL);
-        if (shortsEnabled && !isLocked(ns, CFG.TARGET_STOCK)) tryShort(ns, CFG.TARGET_STOCK, CFG.SHORT_BUY, CFG.SHORT_SELL);
+        runDistributed(
+          ns,
+          hosts,
+          CFG.GROW_SCRIPT,
+          CFG.TARGET_SERVER,
+          0,
+          growThreads,
+          CFG.HOME_RESERVE_GB,
+          "mc-pump-stock",
+          true
+        );
 
-        printStatus(ns, CFG, state, mode, `STOCK-GROW ${growThreads}`);
+        runDistributed(
+          ns,
+          hosts,
+          CFG.WEAKEN_SCRIPT,
+          CFG.TARGET_SERVER,
+          ns.getGrowTime(CFG.TARGET_SERVER) + 200,
+          weakenThreads,
+          CFG.HOME_RESERVE_GB,
+          "mc-pump-weaken"
+        );
+
+        tryBuy(ns, CFG, tradeTracker);
+        if (shortsEnabled) tryShort(ns, CFG, tradeTracker);
+
+        printStatus(ns, CFG, state, mode, `STOCK-GROW ${growThreads}`, tradeTracker);
       }
     }
 
@@ -138,37 +230,104 @@ export async function main(ns) {
   }
 }
 
-// ----------------- Helper Trading Functions -----------------
+// ----------------- TRADING FUNCTIONS -----------------
 
-function tryBuy(ns, sym, buyThresh, sellThresh) {
-  const [longShares] = ns.stock.getPosition(sym);
+function tryBuy(ns, CFG, tradeTracker) {
+  const sym = CFG.TARGET_STOCK;
+  const [longShares, longAvg] = ns.stock.getPosition(sym);
   const price = ns.stock.getPrice(sym);
   const forecast = ns.stock.getForecast(sym);
 
-  if (forecast >= buyThresh && longShares === 0) {
+  if (forecast >= CFG.LONG_BUY && longShares === 0) {
     const maxShares = ns.stock.getMaxShares(sym);
-    const shares = Math.min(maxShares, Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price));
-    if (shares > 0) ns.stock.buyStock(sym, shares);
-  } else if (longShares > 0 && forecast <= sellThresh) {
+    const shares = Math.min(
+      maxShares,
+      Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price)
+    );
+
+    if (shares > 0) {
+      ns.stock.buyStock(sym, shares);
+
+      tradeTracker.long[sym] = {
+        startedAt: Date.now(),
+        buyPrice: price,
+        shares,
+        buyForecast: forecast,
+      };
+
+      ns.tprint(
+        `📈 BUY LONG ${sym} | Shares: ${ns.formatNumber(shares)} | Price: ${ns.formatNumber(price)} | Value: ${ns.formatNumber(shares * price)} | Forecast: ${forecast.toFixed(3)}`
+      );
+    }
+  } else if (longShares > 0 && forecast <= CFG.LONG_SELL) {
+    const opened = tradeTracker.long[sym];
+    const duration = opened ? formatDuration(Date.now() - opened.startedAt) : "unknown";
+
+    const grossProfit = (price - longAvg) * longShares;
+    const netProfit = grossProfit - CFG.TRADE_COMMISSION * 2;
+
     ns.stock.sellStock(sym, longShares);
+
+    tradeTracker.totalLongProfit += netProfit;
+    delete tradeTracker.long[sym];
+
+    ns.tprint(
+      `💰 SELL LONG ${sym} | Shares: ${ns.formatNumber(longShares)} | Buy Avg: ${ns.formatNumber(longAvg)} | Sell: ${ns.formatNumber(price)} | Gross: ${ns.formatNumber(grossProfit)} | Net: ${ns.formatNumber(netProfit)} | Held: ${duration} | Forecast: ${forecast.toFixed(3)}`
+    );
   }
 }
 
-function tryShort(ns, sym, buyThresh, sellThresh) {
-  const [, , shortShares] = ns.stock.getPosition(sym);
+function tryShort(ns, CFG, tradeTracker) {
+  const sym = CFG.TARGET_STOCK;
+  const [, , shortShares, shortAvg] = ns.stock.getPosition(sym);
   const price = ns.stock.getPrice(sym);
   const forecast = ns.stock.getForecast(sym);
 
-  if (forecast <= buyThresh && shortShares === 0) {
+  if (forecast <= CFG.SHORT_BUY && shortShares === 0) {
     const maxShares = ns.stock.getMaxShares(sym);
-    const shares = Math.min(maxShares, Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price));
-    if (shares > 0) ns.stock.shortStock(sym, shares);
-  } else if (shortShares > 0 && forecast >= sellThresh) {
+    const shares = Math.min(
+      maxShares,
+      Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price)
+    );
+
+    if (shares > 0) {
+      ns.stock.shortStock(sym, shares);
+
+      tradeTracker.short[sym] = {
+        startedAt: Date.now(),
+        shortPrice: price,
+        shares,
+        shortForecast: forecast,
+      };
+
+      ns.tprint(
+        `📉 OPEN SHORT ${sym} | Shares: ${ns.formatNumber(shares)} | Price: ${ns.formatNumber(price)} | Value: ${ns.formatNumber(shares * price)} | Forecast: ${forecast.toFixed(3)}`
+      );
+    }
+  } else if (shortShares > 0 && forecast >= CFG.SHORT_SELL) {
+    const opened = tradeTracker.short[sym];
+    const duration = opened ? formatDuration(Date.now() - opened.startedAt) : "unknown";
+
+    const grossProfit = (shortAvg - price) * shortShares;
+    const netProfit = grossProfit - CFG.TRADE_COMMISSION * 2;
+
     ns.stock.sellShort(sym, shortShares);
+
+    tradeTracker.totalShortProfit += netProfit;
+    delete tradeTracker.short[sym];
+
+    ns.tprint(
+      `💰 CLOSE SHORT ${sym} | Shares: ${ns.formatNumber(shortShares)} | Short Avg: ${ns.formatNumber(shortAvg)} | Cover: ${ns.formatNumber(price)} | Gross: ${ns.formatNumber(grossProfit)} | Net: ${ns.formatNumber(netProfit)} | Held: ${duration} | Forecast: ${forecast.toFixed(3)}`
+    );
   }
 }
 
-// ----------------- Controller Helpers -----------------
+// ----------------- CONTROLLER HELPERS -----------------
+
+function isLockedByOther(ns, key, owner) {
+  const lock = getLock(ns, key);
+  return Boolean(lock && lock.owner !== owner);
+}
 
 function getState(ns, CFG) {
   const money = ns.getServerMoneyAvailable(CFG.TARGET_SERVER);
@@ -190,7 +349,7 @@ function getState(ns, CFG) {
   };
 }
 
-function printStatus(ns, CFG, state, mode, action) {
+function printStatus(ns, CFG, state, mode, action, tradeTracker) {
   ns.clearLog();
   ns.print("=== MARKET CONTROLLER PHASE 4 ===");
   ns.print(`Server  : ${CFG.TARGET_SERVER}`);
@@ -201,6 +360,25 @@ function printStatus(ns, CFG, state, mode, action) {
   ns.print(`SecGap  : ${state.secGap.toFixed(3)}`);
   ns.print(`Forecast: ${state.forecast.toFixed(3)}`);
   ns.print(`Price   : ${ns.formatNumber(state.price)}`);
+  ns.print("");
+  ns.print("=== TRADE TRACKING ===");
+  ns.print(`Long Profit Total : ${ns.formatNumber(tradeTracker.totalLongProfit)}`);
+  ns.print(`Short Profit Total: ${ns.formatNumber(tradeTracker.totalShortProfit)}`);
+
+  const longOpen = tradeTracker.long[CFG.TARGET_STOCK];
+  const shortOpen = tradeTracker.short[CFG.TARGET_STOCK];
+
+  if (longOpen) {
+    ns.print(
+      `Open Long : ${ns.formatNumber(longOpen.shares)} shares | Entry: ${ns.formatNumber(longOpen.buyPrice)} | Held: ${formatDuration(Date.now() - longOpen.startedAt)}`
+    );
+  }
+
+  if (shortOpen) {
+    ns.print(
+      `Open Short: ${ns.formatNumber(shortOpen.shares)} shares | Entry: ${ns.formatNumber(shortOpen.shortPrice)} | Held: ${formatDuration(Date.now() - shortOpen.startedAt)}`
+    );
+  }
 }
 
 function calcHackThreads(ns, target, fraction) {
@@ -290,4 +468,17 @@ function runDistributed(ns, hosts, script, target, delay, totalThreads, homeRese
   }
 
   return remaining <= 0;
+}
+
+function formatDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "unknown";
+
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
 }
