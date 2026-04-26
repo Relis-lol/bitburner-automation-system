@@ -18,6 +18,8 @@ export async function main(ns) {
     REFRESH_MS: 5000,
     HOME_RESERVE_GB: 75,
 
+    MIN_FREE_RAM_GB: 1000000, // 1 PB free RAM required before activation
+
     MONEY_HIGH: 0.95,
     MONEY_LOW: 0.15,
     SEC_BUFFER: 3.0,
@@ -40,7 +42,24 @@ export async function main(ns) {
     await ns.sleep(CFG.REFRESH_MS);
   }
 
-  ns.tprint(`✅ Root access confirmed on ${CFG.TARGET_SERVER}. Starting controller.`);
+  ns.tprint(`✅ Root access confirmed on ${CFG.TARGET_SERVER}.`);
+
+  // ----------------- RAM GATE -----------------
+  ns.tprint(`⏳ Waiting for ${ns.formatRam(CFG.MIN_FREE_RAM_GB)} free RAM before activation...`);
+
+  while (getTotalFreeRam(ns, CFG.HOME_RESERVE_GB) < CFG.MIN_FREE_RAM_GB) {
+    const freeRam = getTotalFreeRam(ns, CFG.HOME_RESERVE_GB);
+    ns.clearLog();
+    ns.print("=== MARKET CONTROLLER WAITING ===");
+    ns.print(`Target Server : ${CFG.TARGET_SERVER}`);
+    ns.print(`Target Stock  : ${CFG.TARGET_STOCK}`);
+    ns.print(`Required RAM  : ${ns.formatRam(CFG.MIN_FREE_RAM_GB)}`);
+    ns.print(`Free RAM      : ${ns.formatRam(freeRam)}`);
+    ns.print(`Missing RAM   : ${ns.formatRam(Math.max(0, CFG.MIN_FREE_RAM_GB - freeRam))}`);
+    await ns.sleep(CFG.REFRESH_MS);
+  }
+
+  ns.tprint(`✅ Enough free RAM detected. Starting Market Controller.`);
 
   // atExit cleanup
   ns.atExit(() => {
@@ -91,7 +110,6 @@ export async function main(ns) {
         runDistributed(ns, hosts, CFG.HACK_SCRIPT, CFG.TARGET_SERVER, 0, hackThreads, CFG.HOME_RESERVE_GB, "mc-dump-stock", true);
         runDistributed(ns, hosts, CFG.WEAKEN_SCRIPT, CFG.TARGET_SERVER, ns.getHackTime(CFG.TARGET_SERVER) + 200, weakenThreads, CFG.HOME_RESERVE_GB, "mc-dump-weaken");
 
-        // Auto-trading
         if (!isLocked(ns, CFG.TARGET_STOCK)) tryBuy(ns, CFG.TARGET_STOCK, CFG.LONG_BUY, CFG.LONG_SELL);
         if (shortsEnabled && !isLocked(ns, CFG.TARGET_STOCK)) tryShort(ns, CFG.TARGET_STOCK, CFG.SHORT_BUY, CFG.SHORT_SELL);
 
@@ -109,7 +127,6 @@ export async function main(ns) {
         runDistributed(ns, hosts, CFG.GROW_SCRIPT, CFG.TARGET_SERVER, 0, growThreads, CFG.HOME_RESERVE_GB, "mc-pump-stock", true);
         runDistributed(ns, hosts, CFG.WEAKEN_SCRIPT, CFG.TARGET_SERVER, ns.getGrowTime(CFG.TARGET_SERVER) + 200, weakenThreads, CFG.HOME_RESERVE_GB, "mc-pump-weaken");
 
-        // Auto-trading
         if (!isLocked(ns, CFG.TARGET_STOCK)) tryBuy(ns, CFG.TARGET_STOCK, CFG.LONG_BUY, CFG.LONG_SELL);
         if (shortsEnabled && !isLocked(ns, CFG.TARGET_STOCK)) tryShort(ns, CFG.TARGET_STOCK, CFG.SHORT_BUY, CFG.SHORT_SELL);
 
@@ -240,6 +257,17 @@ function getUsableHosts(ns, homeReserveGb, CFG) {
     })
     .filter(h => h.freeRam > 2)
     .sort((a, b) => b.freeRam - a.freeRam);
+}
+
+function getTotalFreeRam(ns, homeReserveGb) {
+  return getAllServers(ns)
+    .filter(h => ns.hasRootAccess(h))
+    .filter(h => ns.getServerMaxRam(h) > 0)
+    .reduce((total, h) => {
+      const reserve = h === "home" ? homeReserveGb : 0;
+      const free = Math.max(0, ns.getServerMaxRam(h) - ns.getServerUsedRam(h) - reserve);
+      return total + free;
+    }, 0);
 }
 
 function runDistributed(ns, hosts, script, target, delay, totalThreads, homeReserveGb, tag, stock = false) {
