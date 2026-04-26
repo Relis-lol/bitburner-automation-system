@@ -6,8 +6,8 @@ export async function main(ns) {
   ns.ui.openTail();
 
   const CFG = {
-    TARGET_SERVER: "phantasy",
-    TARGET_STOCK: "SLT",
+    TARGET_SERVER: "joesguns",
+    TARGET_STOCK: "JGN",
 
     HACK_SCRIPT: "stock-hack.js",
     GROW_SCRIPT: "stock-grow.js",
@@ -26,18 +26,18 @@ export async function main(ns) {
     MAX_RAM_USE_GB: 1100000,
     TRADE_COMMISSION: 100000,
 
-    MONEY_HIGH: 0.95,
-    MONEY_LOW: 0.15,
+    MONEY_HIGH: 0.90,
+    MONEY_LOW: 0.30,
     SEC_BUFFER: 3.0,
 
     HACK_FRACTION: 0.25,
     GROW_BUFFER: 1.30,
     WEAKEN_BUFFER: 1.30,
 
-    LONG_BUY: 0.60,
-    LONG_SELL: 0.54,
-    SHORT_BUY: 0.40,
-    SHORT_SELL: 0.46,
+    LONG_BUY: 0.55,
+    LONG_SELL: 0.51,
+    SHORT_BUY: 0.45,
+    SHORT_SELL: 0.49,
   };
 
   const tradeTracker = {
