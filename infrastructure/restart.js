@@ -11,6 +11,7 @@ export async function main(ns) {
         "stats.js",
         "stock-trader-shorts.js",
         "infra-manager.js",
+        "notes.js",
     ];
 
     const CHECK_INTERVAL = 30000;
