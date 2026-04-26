@@ -71,16 +71,6 @@ Execution gatekeeper
 - waits until prep phase finishes
 - automatically starts main engine
 
----
-
-## Systems
-
-### xp-grinder.js
-XP farming system
-- consumes configurable share of total network RAM
-- optimized for long-term leveling
-- requires manual tuning depending on network size
-
 ### stock-trader-shorts.js
 Advanced stock trading system
 - supports long and short positions
@@ -97,7 +87,6 @@ Market manipulation and trading orchestrator
 - security-aware execution with distributed weaken threads
 - lock-based coordination to avoid double actions
 - fully automated: monitors server, executes hacks/grows, trades
-
 ---
 
 ## Utilities
