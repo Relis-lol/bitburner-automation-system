@@ -26,6 +26,8 @@ export async function main(ns) {
     PREP_MAX_TARGETS_PER_LOOP: 24,
     BRIDGE_MAX_TARGETS_PER_LOOP: 8,
 
+    MAX_ACTIVE_JOBS_PER_TARGET: 6,
+
     WORKERS: {
       HACK: "/adaptive/hack-worker.js",
       GROW: "/adaptive/grow-worker.js",
@@ -78,6 +80,7 @@ export async function main(ns) {
     const targets = rooted
       .filter((s) => s !== "home")
       .filter((s) => ns.getServerMaxMoney(s) > 0)
+      .filter((s) => ns.getServerRequiredHackingLevel(s) <= hl)
       .map((s) => getTargetState(ns, s));
 
     const phase = phaseManager(ns, hl, hosts, targets, CFG);
@@ -125,9 +128,6 @@ async function handoffToMainSystem(ns, CFG) {
   }
 
   ns.killall("home", true);
-
-  // STARTUP SCRIPTS - EDIT THESE SCRIPT NAMES IF NEEDED
-  // 
 
   ns.run("prep-all.js", 1);
   await ns.sleep(500);
@@ -273,7 +273,8 @@ function getTargetState(ns, name) {
 
   const bridgeScore =
     maxMoney > 0
-      ? (maxMoney * (money / maxMoney) * hackChance * hackPct) / Math.max(1, hackTime)
+      ? (maxMoney * (money / maxMoney) * hackChance * Math.max(hackPct, 0.000001)) /
+        Math.max(1, hackTime)
       : 0;
 
   return {
@@ -327,6 +328,7 @@ function runXpPhase(ns, hosts, targets, RAM, CFG) {
     .slice(0, CFG.XP_MAX_TARGETS);
 
   for (const t of xpTargets) {
+    if (isTargetBusy(ns, t.name, CFG)) continue;
     if (totalFreeRam(hosts) < RAM.weaken) break;
 
     if (t.secDelta > CFG.XP_SEC_SOFTCAP) {
@@ -393,6 +395,7 @@ function runPrepPhase(ns, hosts, targets, RAM, CFG) {
     .slice(0, CFG.PREP_MAX_TARGETS_PER_LOOP);
 
   for (const t of prepTargets) {
+    if (isTargetBusy(ns, t.name, CFG)) continue;
     if (totalFreeRam(hosts) < Math.min(RAM.grow, RAM.weaken)) break;
 
     if (launchPrepForTarget(ns, hosts, t, RAM, CFG)) {
@@ -413,6 +416,7 @@ function runBridgePhase(ns, hosts, targets, RAM, CFG) {
     .slice(0, CFG.BRIDGE_MAX_TARGETS_PER_LOOP);
 
   for (const t of bridgeTargets) {
+    if (isTargetBusy(ns, t.name, CFG)) continue;
     if (totalFreeRam(hosts) < Math.min(RAM.hack, RAM.grow, RAM.weaken)) break;
 
     if (t.secDelta > CFG.BRIDGE_SEC_BUFFER || t.moneyRatio < CFG.BRIDGE_READY_MONEY) {
@@ -478,6 +482,8 @@ function runBridgePhase(ns, hosts, targets, RAM, CFG) {
 function launchPrepForTarget(ns, hosts, t, RAM, CFG) {
   const weak1 = ns.weakenAnalyze(1, 1);
 
+  if (isTargetBusy(ns, t.name, CFG)) return false;
+
   if (t.secDelta > CFG.PREP_SEC_BUFFER) {
     const weakenThreads = Math.max(1, Math.ceil(t.secDelta / weak1));
 
@@ -526,6 +532,30 @@ function launchPrepForTarget(ns, hosts, t, RAM, CFG) {
   }
 
   return false;
+}
+
+function isTargetBusy(ns, target, CFG) {
+  return countActiveJobsForTarget(ns, target, Object.values(CFG.WORKERS)) >= CFG.MAX_ACTIVE_JOBS_PER_TARGET;
+}
+
+function countActiveJobsForTarget(ns, target, workerScripts) {
+  let count = 0;
+
+  for (const host of discoverAllServers(ns)) {
+    if (!ns.hasRootAccess(host)) continue;
+
+    for (const proc of ns.ps(host)) {
+      if (
+        workerScripts.includes(proc.filename) &&
+        proc.args &&
+        proc.args[0] === target
+      ) {
+        count++;
+      }
+    }
+  }
+
+  return count;
 }
 
 function calcGrowThreads(ns, target, currentMoney, targetMoney) {
