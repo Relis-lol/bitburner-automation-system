@@ -14,8 +14,12 @@ export async function main(ns) {
   const MONEY_READY = 0.97;
   const SECURITY_READY_BUFFER = 0.10;
 
-  const MAX_TARGETS = 50;
-  const MAX_ACTIVE_JOBS_PER_TARGET = 10000;
+  const BASE_MAX_TARGETS = 20;
+  const BASE_MAX_ACTIVE_JOBS_PER_TARGET = 10000;
+
+  const HIGH_RAM_MAX_TARGETS = 50;
+  const HIGH_RAM_MAX_ACTIVE_JOBS_PER_TARGET = 30000;
+  const HIGH_RAM_THRESHOLD_GB = 3 * 1024 * 1024; // 3 PB
 
   const LOOP_DELAY = 100;
   const BATCH_COOLDOWN_MS = 60;
@@ -40,12 +44,21 @@ export async function main(ns) {
     const hosts = getUsableHosts(ns, HOME_RESERVE_GB);
     const usage = getNetworkUsage(ns, HOME_RESERVE_GB);
 
+    const scaling = getScalingConfig(
+      usage.total,
+      HIGH_RAM_THRESHOLD_GB,
+      BASE_MAX_TARGETS,
+      BASE_MAX_ACTIVE_JOBS_PER_TARGET,
+      HIGH_RAM_MAX_TARGETS,
+      HIGH_RAM_MAX_ACTIVE_JOBS_PER_TARGET
+    );
+
     if (usage.ratio >= MAX_NETWORK_USAGE) {
       await ns.sleep(LOOP_DELAY);
       continue;
     }
 
-    const targets = getBestTargets(ns).slice(0, MAX_TARGETS);
+    const targets = getBestTargets(ns).slice(0, scaling.maxTargets);
 
     for (const target of targets) {
       if (!state[target]) {
@@ -66,7 +79,7 @@ export async function main(ns) {
         WEAKEN_SCRIPT
       ]);
 
-      if (activeJobs >= MAX_ACTIVE_JOBS_PER_TARGET) {
+      if (activeJobs >= scaling.maxActiveJobsPerTarget) {
         continue;
       }
 
@@ -129,7 +142,8 @@ export async function main(ns) {
         state[target].lastBatch = now;
 
         ns.print(
-          `HWGW | ${target} | hack ${(batch.hackFraction * 100).toFixed(2)}% | ` +
+          `HWGW | ${target} | targets:${scaling.maxTargets} jobs:${scaling.maxActiveJobsPerTarget} | ` +
+          `hack ${(batch.hackFraction * 100).toFixed(2)}% | ` +
           `H:${batch.hackThreads} W1:${batch.weakenHackThreads} ` +
           `G:${batch.growThreads} W2:${batch.weakenGrowThreads} | ` +
           `RAM:${formatRam(batch.totalRam)}`
@@ -139,6 +153,27 @@ export async function main(ns) {
 
     await ns.sleep(LOOP_DELAY);
   }
+}
+
+function getScalingConfig(
+  totalNetworkRam,
+  highRamThresholdGb,
+  baseMaxTargets,
+  baseMaxJobs,
+  highMaxTargets,
+  highMaxJobs
+) {
+  if (totalNetworkRam >= highRamThresholdGb) {
+    return {
+      maxTargets: highMaxTargets,
+      maxActiveJobsPerTarget: highMaxJobs
+    };
+  }
+
+  return {
+    maxTargets: baseMaxTargets,
+    maxActiveJobsPerTarget: baseMaxJobs
+  };
 }
 
 function getAllServers(ns) {
