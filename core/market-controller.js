@@ -6,8 +6,8 @@ export async function main(ns) {
   ns.ui.openTail();
 
   const CFG = {
-    TARGET_SERVER: "omega-net",
-    TARGET_STOCK: "OMGA",
+    TARGET_SERVER: "phantasy",
+    TARGET_STOCK: "SLT",
 
     HACK_SCRIPT: "stock-hack.js",
     GROW_SCRIPT: "stock-grow.js",
@@ -18,8 +18,8 @@ export async function main(ns) {
     REFRESH_MS: 5000,
     HOME_RESERVE_GB: 75,
 
-    MIN_FREE_RAM_GB: 700000,   // 0.7 PB free RAM required before activation
-    MAX_RAM_USE_GB: 1100000,   // never use more than 1.1 PB
+    MIN_FREE_RAM_GB: 700000,
+    MAX_RAM_USE_GB: 1100000,
     TRADE_COMMISSION: 100000,
 
     MONEY_HIGH: 0.95,
