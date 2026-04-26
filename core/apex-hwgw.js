@@ -18,7 +18,7 @@ export async function main(ns) {
   const BASE_MAX_ACTIVE_JOBS_PER_TARGET = 10000;
 
   const HIGH_RAM_MAX_TARGETS = 50;
-  const HIGH_RAM_MAX_ACTIVE_JOBS_PER_TARGET = 30000;
+  const HIGH_RAM_MAX_ACTIVE_JOBS_PER_TARGET = 50000;
   const HIGH_RAM_THRESHOLD_GB = 3 * 1024 * 1024; // 3 PB
 
   const LOOP_DELAY = 100;
