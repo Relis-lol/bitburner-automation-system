@@ -12,9 +12,9 @@ export async function main(ns) {
   const HOME_RESERVE_GB = 50;
 
   const MONEY_READY = 0.97;
-  const SECURITY_READY_BUFFER = 0.35;
+  const SECURITY_READY_BUFFER = 0.10;
 
-  const MAX_TARGETS = 10;
+  const MAX_TARGETS = 50;
   const MAX_ACTIVE_JOBS_PER_TARGET = 10000;
 
   const LOOP_DELAY = 100;
@@ -225,7 +225,6 @@ function getTotalAvailableRam(ns, hosts, homeReserveGb) {
 function getBestTargets(ns) {
   return getAllServers(ns)
     .filter(target => ns.hasRootAccess(target))
-    .filter(target => target !== "joesguns")
     .filter(target => !isLocked(ns, target))
     .filter(target => ns.getServerMaxMoney(target) > 0)
     .filter(target => ns.getServerRequiredHackingLevel(target) <= ns.getHackingLevel())
