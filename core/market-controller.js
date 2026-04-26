@@ -342,7 +342,7 @@ function printStatus(ns, CFG, state, mode, action, tradeTracker, hosts) {
   const allocatedRam = hosts.reduce((sum, h) => sum + h.freeRam, 0);
 
   ns.clearLog();
-  ns.print("=== MARKET CONTROLLER PHASE 4 ===");
+  ns.print("=== MARKET CONTROLLER ===");
   ns.print(`Server  : ${CFG.TARGET_SERVER}`);
   ns.print(`Stock   : ${CFG.TARGET_STOCK}`);
   ns.print(`Mode    : ${mode}`);
