@@ -14,8 +14,8 @@ export async function main(ns) {
   const MONEY_READY = 0.97;
   const SECURITY_READY_BUFFER = 0.35;
 
-  const MAX_TARGETS = 50;
-  const MAX_ACTIVE_JOBS_PER_TARGET = 35000;
+  const MAX_TARGETS = 10;
+  const MAX_ACTIVE_JOBS_PER_TARGET = 10000;
 
   const LOOP_DELAY = 100;
   const BATCH_COOLDOWN_MS = 60;
