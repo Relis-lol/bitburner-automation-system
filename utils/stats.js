@@ -2,17 +2,16 @@
 export async function main(ns) {
     ns.disableLog("ALL");
     ns.ui.openTail();
-    ns.ui.resizeTail(700, 500);
+    ns.ui.resizeTail(700, 520);
 
-    const UPDATE_MS = 1000; // 1s
-    const HISTORY_LENGTH = 300; // 5 min rolling average at 1s intervals
+    const UPDATE_MS = 1000;
+    const HISTORY_LENGTH = 300;
     const MAX_PURCHASED_SERVERS = 25;
 
     let incomeHistory = [];
     let lastMoney = ns.getServerMoneyAvailable("home");
 
     while (true) {
-        // 1. SCAN ALL SERVERS
         let allServers = ["home"];
         for (let i = 0; i < allServers.length; i++) {
             let scanRes = ns.scan(allServers[i]);
@@ -26,6 +25,7 @@ export async function main(ns) {
 
         let totalMaxRam = 0;
         let totalUsedRam = 0;
+        let totalThreads = 0;
 
         for (let s of allServers) {
             let serverInfo = ns.getServer(s);
@@ -36,6 +36,11 @@ export async function main(ns) {
             totalMaxRam += maxRam;
             totalUsedRam += usedRam;
 
+            let processes = ns.ps(s);
+            for (let proc of processes) {
+                totalThreads += proc.threads;
+            }
+
             if (serverInfo.purchasedByPlayer && s !== "home") {
                 purchasedServers.push(s);
             } else if (ns.hasRootAccess(s) && ns.getServerMaxMoney(s) > 0 && !serverInfo.purchasedByPlayer) {
@@ -43,7 +48,6 @@ export async function main(ns) {
             }
         }
 
-        // SORTING
         purchasedServers.sort((a, b) => {
             const ramDiff = ns.getServerMaxRam(b) - ns.getServerMaxRam(a);
             if (ramDiff !== 0) return ramDiff;
@@ -55,7 +59,6 @@ export async function main(ns) {
 
         hackedServers.sort((a, b) => ns.getServerMaxMoney(b) - ns.getServerMaxMoney(a));
 
-        // --- IMPROVED INCOME CALC (Delta based to ignore spending) ---
         let currentMoney = ns.getServerMoneyAvailable("home");
         let delta = currentMoney - lastMoney;
         let incomeThisTick = delta > 0 ? delta : 0; 
@@ -71,7 +74,6 @@ export async function main(ns) {
 
         let incomePerDay = incomePerSec * 86400;
         
-        // --- FIXED: Added [0] to get the number from the array ---
         let hackIncomeOnly = ns.getTotalScriptIncome()[0]; 
         let hackShare = 0;
         let otherShare = 0;
@@ -85,15 +87,12 @@ export async function main(ns) {
 
         lastMoney = currentMoney;
 
-        // RAM CALC
         let totalFreeRam = totalMaxRam - totalUsedRam;
         let usagePercent = totalMaxRam > 0 ? (totalUsedRam / totalMaxRam) * 100 : 0;
 
-        // PURCHASED SUMMARY
         let highestPurchased = purchasedServers.length > 0 ? purchasedServers[0] : null;
         let lowestPurchased = purchasedServers.length > 0 ? purchasedServers[purchasedServers.length - 1] : null;
 
-        // UI
         ns.clearLog();
 
         ns.print(`=== HACKED SERVERS (${hackedServers.length}/${allServers.length - 1}) ===`);
@@ -128,10 +127,11 @@ export async function main(ns) {
         }
 
         ns.print(`\n=== NETWORK RAM ===`);
-        ns.print(`Total : ${ns.formatRam(totalMaxRam)}`);
-        ns.print(`Used  : ${ns.formatRam(totalUsedRam)}`);
-        ns.print(`Free  : ${ns.formatRam(totalFreeRam)}`);
-        ns.print(`Usage : ${usagePercent.toFixed(2)}%`);
+        ns.print(`Total   : ${ns.formatRam(totalMaxRam)}`);
+        ns.print(`Used    : ${ns.formatRam(totalUsedRam)}`);
+        ns.print(`Free    : ${ns.formatRam(totalFreeRam)}`);
+        ns.print(`Usage   : ${usagePercent.toFixed(2)}%`);
+        ns.print(`Threads : ${totalThreads.toLocaleString()}`);
 
         ns.print(`\n=== INCOME [${new Date().toLocaleTimeString()}] ===`);
         ns.print(`$/s : ${ns.formatNumber(incomePerSec)}`);
