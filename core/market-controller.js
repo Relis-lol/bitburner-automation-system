@@ -18,7 +18,8 @@ export async function main(ns) {
     REFRESH_MS: 5000,
     HOME_RESERVE_GB: 75,
 
-    MIN_FREE_RAM_GB: 1000000, // 1 PB free RAM required before activation
+    MIN_FREE_RAM_GB: 700000,   // 0.7 PB free RAM required before activation
+    MAX_RAM_USE_GB: 1100000,   // never use more than 1.1 PB
     TRADE_COMMISSION: 100000,
 
     MONEY_HIGH: 0.95,
@@ -42,7 +43,6 @@ export async function main(ns) {
     totalShortProfit: 0,
   };
 
-  // ----------------- ACCESS GATE -----------------
   ns.tprint(`⏳ Waiting for root access on ${CFG.TARGET_SERVER}...`);
 
   while (!ns.hasRootAccess(CFG.TARGET_SERVER)) {
@@ -52,7 +52,6 @@ export async function main(ns) {
 
   ns.tprint(`✅ Root access confirmed on ${CFG.TARGET_SERVER}.`);
 
-  // ----------------- RAM GATE -----------------
   ns.tprint(`⏳ Waiting for ${ns.formatRam(CFG.MIN_FREE_RAM_GB)} free RAM before activation...`);
 
   while (getTotalFreeRam(ns, CFG.HOME_RESERVE_GB) < CFG.MIN_FREE_RAM_GB) {
@@ -65,19 +64,19 @@ export async function main(ns) {
     ns.print(`Required RAM  : ${ns.formatRam(CFG.MIN_FREE_RAM_GB)}`);
     ns.print(`Free RAM      : ${ns.formatRam(freeRam)}`);
     ns.print(`Missing RAM   : ${ns.formatRam(Math.max(0, CFG.MIN_FREE_RAM_GB - freeRam))}`);
+    ns.print(`Max Use Limit : ${ns.formatRam(CFG.MAX_RAM_USE_GB)}`);
 
     await ns.sleep(CFG.REFRESH_MS);
   }
 
   ns.tprint(`✅ Enough free RAM detected. Starting Market Controller.`);
+  ns.tprint(`RAM cap: ${ns.formatRam(CFG.MAX_RAM_USE_GB)}`);
 
-  // ----------------- EXIT CLEANUP -----------------
   ns.atExit(() => {
     clearLock(ns, CFG.TARGET_SERVER, CFG.OWNER);
     clearLock(ns, CFG.TARGET_STOCK, CFG.OWNER);
   });
 
-  // ----------------- SHORT TEST -----------------
   const shortsEnabled = (() => {
     try {
       ns.stock.shortStock(CFG.TARGET_STOCK, 0);
@@ -93,7 +92,6 @@ export async function main(ns) {
   let mode = "DUMP";
 
   while (true) {
-    // Renew locks every loop
     setLock(ns, CFG.TARGET_SERVER, CFG.OWNER, CFG.TTL, {
       type: "server",
       stock: CFG.TARGET_STOCK,
@@ -107,7 +105,6 @@ export async function main(ns) {
     const state = getState(ns, CFG);
     const hosts = getUsableHosts(ns, CFG.HOME_RESERVE_GB, CFG);
 
-    // If another script somehow owns the lock, do nothing
     if (
       isLockedByOther(ns, CFG.TARGET_SERVER, CFG.OWNER) ||
       isLockedByOther(ns, CFG.TARGET_STOCK, CFG.OWNER)
@@ -117,7 +114,6 @@ export async function main(ns) {
       continue;
     }
 
-    // Security first
     if (state.secGap > CFG.SEC_BUFFER) {
       const weakenThreads = Math.ceil((state.secGap / ns.weakenAnalyze(1)) * CFG.WEAKEN_BUFFER);
 
@@ -128,16 +124,14 @@ export async function main(ns) {
         CFG.TARGET_SERVER,
         0,
         weakenThreads,
-        CFG.HOME_RESERVE_GB,
         "mc-weaken"
       );
 
-      printStatus(ns, CFG, state, mode, `WEAKEN ${weakenThreads}`, tradeTracker);
+      printStatus(ns, CFG, state, mode, `WEAKEN ${weakenThreads}`, tradeTracker, hosts);
       await ns.sleep(CFG.REFRESH_MS);
       continue;
     }
 
-    // ----------------- DUMP MODE -----------------
     if (mode === "DUMP") {
       if (state.moneyRatio <= CFG.MONEY_LOW) {
         mode = "PUMP";
@@ -155,7 +149,6 @@ export async function main(ns) {
           CFG.TARGET_SERVER,
           0,
           hackThreads,
-          CFG.HOME_RESERVE_GB,
           "mc-dump-stock",
           true
         );
@@ -167,18 +160,16 @@ export async function main(ns) {
           CFG.TARGET_SERVER,
           ns.getHackTime(CFG.TARGET_SERVER) + 200,
           weakenThreads,
-          CFG.HOME_RESERVE_GB,
           "mc-dump-weaken"
         );
 
         tryBuy(ns, CFG, tradeTracker);
         if (shortsEnabled) tryShort(ns, CFG, tradeTracker);
 
-        printStatus(ns, CFG, state, mode, `STOCK-HACK ${hackThreads}`, tradeTracker);
+        printStatus(ns, CFG, state, mode, `STOCK-HACK ${hackThreads}`, tradeTracker, hosts);
       }
     }
 
-    // ----------------- PUMP MODE -----------------
     if (mode === "PUMP") {
       if (state.moneyRatio >= CFG.MONEY_HIGH) {
         mode = "DUMP";
@@ -203,7 +194,6 @@ export async function main(ns) {
           CFG.TARGET_SERVER,
           0,
           growThreads,
-          CFG.HOME_RESERVE_GB,
           "mc-pump-stock",
           true
         );
@@ -215,14 +205,13 @@ export async function main(ns) {
           CFG.TARGET_SERVER,
           ns.getGrowTime(CFG.TARGET_SERVER) + 200,
           weakenThreads,
-          CFG.HOME_RESERVE_GB,
           "mc-pump-weaken"
         );
 
         tryBuy(ns, CFG, tradeTracker);
         if (shortsEnabled) tryShort(ns, CFG, tradeTracker);
 
-        printStatus(ns, CFG, state, mode, `STOCK-GROW ${growThreads}`, tradeTracker);
+        printStatus(ns, CFG, state, mode, `STOCK-GROW ${growThreads}`, tradeTracker, hosts);
       }
     }
 
@@ -349,7 +338,9 @@ function getState(ns, CFG) {
   };
 }
 
-function printStatus(ns, CFG, state, mode, action, tradeTracker) {
+function printStatus(ns, CFG, state, mode, action, tradeTracker, hosts) {
+  const allocatedRam = hosts.reduce((sum, h) => sum + h.freeRam, 0);
+
   ns.clearLog();
   ns.print("=== MARKET CONTROLLER PHASE 4 ===");
   ns.print(`Server  : ${CFG.TARGET_SERVER}`);
@@ -360,6 +351,10 @@ function printStatus(ns, CFG, state, mode, action, tradeTracker) {
   ns.print(`SecGap  : ${state.secGap.toFixed(3)}`);
   ns.print(`Forecast: ${state.forecast.toFixed(3)}`);
   ns.print(`Price   : ${ns.formatNumber(state.price)}`);
+  ns.print("");
+  ns.print("=== RAM BUDGET ===");
+  ns.print(`Max Use : ${ns.formatRam(CFG.MAX_RAM_USE_GB)}`);
+  ns.print(`Budget  : ${ns.formatRam(allocatedRam)}`);
   ns.print("");
   ns.print("=== TRADE TRACKING ===");
   ns.print(`Long Profit Total : ${ns.formatNumber(tradeTracker.totalLongProfit)}`);
@@ -418,6 +413,8 @@ function getUsableHosts(ns, homeReserveGb, CFG) {
     CFG.WEAKEN_SCRIPT,
   ];
 
+  let remainingRamBudget = CFG.MAX_RAM_USE_GB;
+
   return getAllServers(ns)
     .filter(h => ns.hasRootAccess(h))
     .filter(h => ns.getServerMaxRam(h) > 0)
@@ -427,10 +424,14 @@ function getUsableHosts(ns, homeReserveGb, CFG) {
       }
 
       const reserve = h === "home" ? homeReserveGb : 0;
+      const realFreeRam = Math.max(0, ns.getServerMaxRam(h) - ns.getServerUsedRam(h) - reserve);
+      const usableRam = Math.min(realFreeRam, remainingRamBudget);
+
+      remainingRamBudget -= usableRam;
 
       return {
         name: h,
-        freeRam: Math.max(0, ns.getServerMaxRam(h) - ns.getServerUsedRam(h) - reserve),
+        freeRam: usableRam,
       };
     })
     .filter(h => h.freeRam > 2)
@@ -448,7 +449,7 @@ function getTotalFreeRam(ns, homeReserveGb) {
     }, 0);
 }
 
-function runDistributed(ns, hosts, script, target, delay, totalThreads, homeReserveGb, tag, stock = false) {
+function runDistributed(ns, hosts, script, target, delay, totalThreads, tag, stock = false) {
   let remaining = totalThreads;
   const ram = ns.getScriptRam(script, "home");
 
@@ -457,13 +458,15 @@ function runDistributed(ns, hosts, script, target, delay, totalThreads, homeRese
   for (const h of hosts) {
     if (remaining <= 0) break;
 
-    const reserve = h.name === "home" ? homeReserveGb : 0;
-    const free = Math.max(0, ns.getServerMaxRam(h.name) - ns.getServerUsedRam(h.name) - reserve);
-    const threads = Math.min(Math.floor(free / ram), remaining);
+    const threads = Math.min(Math.floor(h.freeRam / ram), remaining);
 
     if (threads > 0) {
       const pid = ns.exec(script, h.name, threads, target, delay, tag, stock);
-      if (pid !== 0) remaining -= threads;
+
+      if (pid !== 0) {
+        remaining -= threads;
+        h.freeRam -= threads * ram;
+      }
     }
   }
 
