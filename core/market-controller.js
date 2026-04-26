@@ -14,8 +14,12 @@ export async function main(ns) {
     WEAKEN_SCRIPT: "weaken2.js",
 
     OWNER: "market-controller",
-    TTL: 30000,
+    TTL: 90000,
+
     REFRESH_MS: 5000,
+    ROOT_CHECK_MS: 30000,
+    RAM_CHECK_MS: 30000,
+
     HOME_RESERVE_GB: 75,
 
     MIN_FREE_RAM_GB: 700000,
@@ -43,22 +47,59 @@ export async function main(ns) {
     totalShortProfit: 0,
   };
 
-  ns.tprint(`⏳ Waiting for root access on ${CFG.TARGET_SERVER}...`);
+  ns.atExit(() => {
+    clearLock(ns, CFG.TARGET_SERVER, CFG.OWNER);
+    clearLock(ns, CFG.TARGET_STOCK, CFG.OWNER);
+  });
+
+  // ----------------- ROOT GATE -----------------
+  ns.tprint(`⏳ Reserving ${CFG.TARGET_SERVER} / ${CFG.TARGET_STOCK} and waiting for root access...`);
 
   while (!ns.hasRootAccess(CFG.TARGET_SERVER)) {
-    ns.print(`No root access on ${CFG.TARGET_SERVER}. Waiting...`);
-    await ns.sleep(CFG.REFRESH_MS);
+    setLock(ns, CFG.TARGET_SERVER, CFG.OWNER, CFG.TTL, {
+      type: "server",
+      stock: CFG.TARGET_STOCK,
+      status: "waiting-for-root",
+    });
+
+    setLock(ns, CFG.TARGET_STOCK, CFG.OWNER, CFG.TTL, {
+      type: "stock",
+      server: CFG.TARGET_SERVER,
+      status: "waiting-for-root",
+    });
+
+    ns.clearLog();
+    ns.print("=== MARKET CONTROLLER WAITING FOR ROOT ===");
+    ns.print(`Target Server : ${CFG.TARGET_SERVER}`);
+    ns.print(`Target Stock  : ${CFG.TARGET_STOCK}`);
+    ns.print(`Root Access   : ${ns.hasRootAccess(CFG.TARGET_SERVER)}`);
+    ns.print(`Next Check    : ${CFG.ROOT_CHECK_MS / 1000}s`);
+
+    await ns.sleep(CFG.ROOT_CHECK_MS);
   }
 
   ns.tprint(`✅ Root access confirmed on ${CFG.TARGET_SERVER}.`);
 
+  // ----------------- RAM GATE -----------------
   ns.tprint(`⏳ Waiting for ${ns.formatRam(CFG.MIN_FREE_RAM_GB)} free RAM before activation...`);
 
   while (getTotalFreeRam(ns, CFG.HOME_RESERVE_GB) < CFG.MIN_FREE_RAM_GB) {
+    setLock(ns, CFG.TARGET_SERVER, CFG.OWNER, CFG.TTL, {
+      type: "server",
+      stock: CFG.TARGET_STOCK,
+      status: "waiting-for-ram",
+    });
+
+    setLock(ns, CFG.TARGET_STOCK, CFG.OWNER, CFG.TTL, {
+      type: "stock",
+      server: CFG.TARGET_SERVER,
+      status: "waiting-for-ram",
+    });
+
     const freeRam = getTotalFreeRam(ns, CFG.HOME_RESERVE_GB);
 
     ns.clearLog();
-    ns.print("=== MARKET CONTROLLER WAITING ===");
+    ns.print("=== MARKET CONTROLLER WAITING FOR RAM ===");
     ns.print(`Target Server : ${CFG.TARGET_SERVER}`);
     ns.print(`Target Stock  : ${CFG.TARGET_STOCK}`);
     ns.print(`Required RAM  : ${ns.formatRam(CFG.MIN_FREE_RAM_GB)}`);
@@ -66,16 +107,11 @@ export async function main(ns) {
     ns.print(`Missing RAM   : ${ns.formatRam(Math.max(0, CFG.MIN_FREE_RAM_GB - freeRam))}`);
     ns.print(`Max Use Limit : ${ns.formatRam(CFG.MAX_RAM_USE_GB)}`);
 
-    await ns.sleep(CFG.REFRESH_MS);
+    await ns.sleep(CFG.RAM_CHECK_MS);
   }
 
   ns.tprint(`✅ Enough free RAM detected. Starting Market Controller.`);
   ns.tprint(`RAM cap: ${ns.formatRam(CFG.MAX_RAM_USE_GB)}`);
-
-  ns.atExit(() => {
-    clearLock(ns, CFG.TARGET_SERVER, CFG.OWNER);
-    clearLock(ns, CFG.TARGET_STOCK, CFG.OWNER);
-  });
 
   const shortsEnabled = (() => {
     try {
@@ -87,7 +123,7 @@ export async function main(ns) {
   })();
 
   ns.tprint(`🚫 Market Controller active: ${CFG.TARGET_SERVER} / ${CFG.TARGET_STOCK}`);
-  ns.tprint(`PHASE 4: Manipulation + auto-trading. Shorts: ${shortsEnabled ? "ENABLED" : "DISABLED"}`);
+  ns.tprint(`Manipulation + auto-trading. Shorts: ${shortsEnabled ? "ENABLED" : "DISABLED"}`);
 
   let mode = "DUMP";
 
@@ -95,11 +131,13 @@ export async function main(ns) {
     setLock(ns, CFG.TARGET_SERVER, CFG.OWNER, CFG.TTL, {
       type: "server",
       stock: CFG.TARGET_STOCK,
+      status: "active",
     });
 
     setLock(ns, CFG.TARGET_STOCK, CFG.OWNER, CFG.TTL, {
       type: "stock",
       server: CFG.TARGET_SERVER,
+      status: "active",
     });
 
     const state = getState(ns, CFG);
@@ -117,15 +155,7 @@ export async function main(ns) {
     if (state.secGap > CFG.SEC_BUFFER) {
       const weakenThreads = Math.ceil((state.secGap / ns.weakenAnalyze(1)) * CFG.WEAKEN_BUFFER);
 
-      runDistributed(
-        ns,
-        hosts,
-        CFG.WEAKEN_SCRIPT,
-        CFG.TARGET_SERVER,
-        0,
-        weakenThreads,
-        "mc-weaken"
-      );
+      runDistributed(ns, hosts, CFG.WEAKEN_SCRIPT, CFG.TARGET_SERVER, 0, weakenThreads, "mc-weaken");
 
       printStatus(ns, CFG, state, mode, `WEAKEN ${weakenThreads}`, tradeTracker, hosts);
       await ns.sleep(CFG.REFRESH_MS);
@@ -142,16 +172,7 @@ export async function main(ns) {
           CFG.WEAKEN_BUFFER
         );
 
-        runDistributed(
-          ns,
-          hosts,
-          CFG.HACK_SCRIPT,
-          CFG.TARGET_SERVER,
-          0,
-          hackThreads,
-          "mc-dump-stock",
-          true
-        );
+        runDistributed(ns, hosts, CFG.HACK_SCRIPT, CFG.TARGET_SERVER, 0, hackThreads, "mc-dump-stock", true);
 
         runDistributed(
           ns,
@@ -187,16 +208,7 @@ export async function main(ns) {
           CFG.WEAKEN_BUFFER
         );
 
-        runDistributed(
-          ns,
-          hosts,
-          CFG.GROW_SCRIPT,
-          CFG.TARGET_SERVER,
-          0,
-          growThreads,
-          "mc-pump-stock",
-          true
-        );
+        runDistributed(ns, hosts, CFG.GROW_SCRIPT, CFG.TARGET_SERVER, 0, growThreads, "mc-pump-stock", true);
 
         runDistributed(
           ns,
@@ -229,10 +241,7 @@ function tryBuy(ns, CFG, tradeTracker) {
 
   if (forecast >= CFG.LONG_BUY && longShares === 0) {
     const maxShares = ns.stock.getMaxShares(sym);
-    const shares = Math.min(
-      maxShares,
-      Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price)
-    );
+    const shares = Math.min(maxShares, Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price));
 
     if (shares > 0) {
       ns.stock.buyStock(sym, shares);
@@ -274,10 +283,7 @@ function tryShort(ns, CFG, tradeTracker) {
 
   if (forecast <= CFG.SHORT_BUY && shortShares === 0) {
     const maxShares = ns.stock.getMaxShares(sym);
-    const shares = Math.min(
-      maxShares,
-      Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price)
-    );
+    const shares = Math.min(maxShares, Math.floor((ns.getServerMoneyAvailable("home") * 0.2) / price));
 
     if (shares > 0) {
       ns.stock.shortStock(sym, shares);
