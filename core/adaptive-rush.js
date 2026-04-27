@@ -131,6 +131,8 @@ async function handoffToMainSystem(ns, CFG) {
 
   ns.run("prep-all.js", 1);
   await ns.sleep(500);
+  ns.run("notes.js", 1);
+  await ns.sleep(500);
 
   ns.tprint("Main system started. Adaptive rush stopping now.");
 }
