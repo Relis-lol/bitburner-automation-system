@@ -79,24 +79,9 @@ Advanced stock trading system
 - requires 4S Market Data API
 - short trading requires the related unlock
 
-### market-controller.js
-Market manipulation and trading orchestrator
-- automated buy/sell for long and short positions
-- integrates stock-hack.js and stock-grow.js workers
-- dynamic server money ratio handling (DUMP / PUMP cycles)
-- security-aware execution with distributed weaken threads
-- lock-based coordination to avoid double actions
-- fully automated: monitors server, executes hacks/grows, trades
 ---
 
 ## Utilities
-
-### lock-manager.js
-Resource lock system
-- read, write, refresh, clear locks
-- TTL-based expiration
-- prevents overlapping actions on servers or stocks
-- used by market-controller.js and other distributed scripts
 
 ### stats.js
 Monitoring utility
@@ -123,7 +108,6 @@ Access helpers
 Execution layer:
 - hack.js / grow.js / weaken.js
 - hack2.js / grow2.js / weaken2.js (batch-compatible, delayed execution)
-- stock-hack.js / stock-grow.js (used by market-controller.js for automated market manipulation)
 
 ---
 
