@@ -7,11 +7,9 @@ export async function main(ns) {
 
     const STARTUP_SCRIPTS = [
         "apex-hwgw.js",
-        "market-controller.js",
         "stats.js",
         "stock-trader-shorts.js",
         "infra-manager.js",
-        "notes.js",
     ];
 
     const CHECK_INTERVAL = 30000;
