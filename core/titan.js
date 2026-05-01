@@ -1,96 +1,226 @@
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
-    
-    // Terminal notification instead of a popup
-    ns.tprint("--- TITAN STARTED ---");
+    ns.tprint("--- TITAN SOLO STARTED ---");
 
-    const BUFFER = 100;
-    const HOME_RESERVE = 20;
+    const LOOP_DELAY = 3000;
+    const HOME_RESERVE = 8;
 
-    const getAllServers = () => {
-        let set = new Set(["home"]);
-        set.forEach(s => ns.scan(s).forEach(n => set.add(n)));
-        return Array.from(set);
-    };
+    const HACK_SCRIPT = "hack2.js";
+    const GROW_SCRIPT = "grow2.js";
+    const WEAKEN_SCRIPT = "weaken2.js";
+
+    const WORKER_SCRIPTS = [HACK_SCRIPT, GROW_SCRIPT, WEAKEN_SCRIPT];
+
+    function getAllServers() {
+        const found = new Set(["home"]);
+        const stack = ["home"];
+
+        while (stack.length > 0) {
+            const server = stack.pop();
+
+            for (const next of ns.scan(server)) {
+                if (!found.has(next)) {
+                    found.add(next);
+                    stack.push(next);
+                }
+            }
+        }
+
+        return [...found];
+    }
+
+    function tryRoot(server) {
+        if (server === "home") return true;
+        if (ns.hasRootAccess(server)) return true;
+
+        let ports = 0;
+
+        if (ns.fileExists("BruteSSH.exe", "home")) {
+            ns.brutessh(server);
+            ports++;
+        }
+
+        if (ns.fileExists("FTPCrack.exe", "home")) {
+            ns.ftpcrack(server);
+            ports++;
+        }
+
+        if (ns.fileExists("relaySMTP.exe", "home")) {
+            ns.relaysmtp(server);
+            ports++;
+        }
+
+        if (ns.fileExists("HTTPWorm.exe", "home")) {
+            ns.httpworm(server);
+            ports++;
+        }
+
+        if (ns.fileExists("SQLInject.exe", "home")) {
+            ns.sqlinject(server);
+            ports++;
+        }
+
+        if (ports >= ns.getServerNumPortsRequired(server)) {
+            ns.nuke(server);
+            return true;
+        }
+
+        return false;
+    }
+
+    async function deployScripts(server) {
+        if (server === "home") return;
+
+        for (const script of WORKER_SCRIPTS) {
+            if (!ns.fileExists(script, server)) {
+                await ns.scp(script, server);
+            }
+        }
+    }
+
+    function getBestTarget(servers) {
+        const playerSkill = ns.getHackingLevel();
+
+        const targets = servers
+            .filter(s =>
+                ns.hasRootAccess(s) &&
+                ns.getServerMaxMoney(s) > 0 &&
+                ns.getServerRequiredHackingLevel(s) <= playerSkill
+            )
+            .map(s => {
+                const maxMoney = ns.getServerMaxMoney(s);
+                const curMoney = ns.getServerMoneyAvailable(s);
+                const minSec = ns.getServerMinSecurityLevel(s);
+                const curSec = ns.getServerSecurityLevel(s);
+                const growth = ns.getServerGrowth(s);
+
+                const moneyRatio = curMoney / maxMoney;
+                const secPenalty = Math.max(1, curSec - minSec + 1);
+
+                const score = (maxMoney * moneyRatio * growth) / secPenalty;
+
+                return { name: s, score };
+            })
+            .sort((a, b) => b.score - a.score);
+
+        return targets.length > 0 ? targets[0].name : null;
+    }
 
     while (true) {
-        let allServers = getAllServers();
-        let rootServers = allServers.filter(s => ns.hasRootAccess(s));
+        const allServers = getAllServers();
 
+        let rooted = 0;
+        let usableHosts = 0;
         let totalMaxRam = 0;
         let totalUsedRam = 0;
 
-        // Collect all relevant targets
-        let targets = rootServers.filter(s => ns.getServerMaxMoney(s) > 0);
+        const actions = {
+            hack: 0,
+            grow: 0,
+            weaken: 0
+        };
 
-        // Sort targets by "Value + State"
-        targets.sort((a, b) => {
-            let aScore = ns.getServerMaxMoney(a) * (ns.getServerMoneyAvailable(a) / ns.getServerMaxMoney(a));
-            let bScore = ns.getServerMaxMoney(b) * (ns.getServerMoneyAvailable(b) / ns.getServerMaxMoney(b));
-            return bScore - aScore;
-        });
+        for (const server of allServers) {
+            tryRoot(server);
 
-        for (let host of rootServers) {
-            let maxRam = ns.getServerMaxRam(host);
-            let usedRam = ns.getServerUsedRam(host);
+            if (ns.hasRootAccess(server)) {
+                rooted++;
+                await deployScripts(server);
+            }
+        }
+
+        const rootServers = allServers.filter(s => ns.hasRootAccess(s));
+        const bestTarget = getBestTarget(rootServers);
+
+        for (const host of rootServers) {
+            const maxRam = ns.getServerMaxRam(host);
+            const usedRam = ns.getServerUsedRam(host);
 
             totalMaxRam += maxRam;
             totalUsedRam += usedRam;
 
+            if (maxRam <= 0) continue;
+
             let freeRam = maxRam - usedRam;
-            if (host === "home") freeRam -= HOME_RESERVE;
-            if (freeRam < 1.75) continue;
 
-            let threads = Math.floor(freeRam / 1.75);
-            
-            // Choose target for this host
-            let target = targets[0]; 
+            if (host === "home") {
+                freeRam -= HOME_RESERVE;
+            }
 
-            // Small servers work on themselves
-            if (!host.startsWith("serv-") && host !== "home") {
+            if (freeRam <= 0) continue;
+
+            const hackRam = ns.getScriptRam(HACK_SCRIPT, host);
+            const growRam = ns.getScriptRam(GROW_SCRIPT, host);
+            const weakenRam = ns.getScriptRam(WEAKEN_SCRIPT, host);
+
+            const minWorkerRam = Math.min(hackRam, growRam, weakenRam);
+
+            if (freeRam < minWorkerRam) continue;
+
+            usableHosts++;
+
+            let target = bestTarget;
+
+            const hostCanSelfHack =
+                host !== "home" &&
+                ns.getServerMaxMoney(host) > 0 &&
+                ns.getServerRequiredHackingLevel(host) <= ns.getHackingLevel();
+
+            if (hostCanSelfHack) {
                 target = host;
             }
 
-            let tMax = ns.getServerMaxMoney(target);
-            let tCur = ns.getServerMoneyAvailable(target);
-            let tMin = ns.getServerMinSecurityLevel(target);
-            let tSec = ns.getServerSecurityLevel(target);
+            if (!target) continue;
 
-            // STABILITY LOGIC
-            if (tSec > tMin + 1) {
-                ns.exec("weaken.js", host, threads, target);
-                continue;
+            const maxMoney = ns.getServerMaxMoney(target);
+            const curMoney = ns.getServerMoneyAvailable(target);
+            const minSec = ns.getServerMinSecurityLevel(target);
+            const curSec = ns.getServerSecurityLevel(target);
+
+            let script;
+            let ramPerThread;
+
+            if (curSec > minSec + 3) {
+                script = WEAKEN_SCRIPT;
+                ramPerThread = weakenRam;
+                actions.weaken++;
+            } else if (curMoney < maxMoney * 0.70) {
+                script = GROW_SCRIPT;
+                ramPerThread = growRam;
+                actions.grow++;
+            } else {
+                script = HACK_SCRIPT;
+                ramPerThread = hackRam;
+                actions.hack++;
             }
 
-            if (tCur < tMax * 0.75) {
-                ns.exec("grow.js", host, threads, target);
-                continue;
+            let threads = Math.floor(freeRam / ramPerThread);
+
+            if (threads < 1) continue;
+
+            if (script === HACK_SCRIPT) {
+                const wantedHackThreads = Math.floor(
+                    ns.hackAnalyzeThreads(target, curMoney * 0.05)
+                );
+
+                threads = Math.max(1, Math.min(threads, wantedHackThreads));
             }
 
-            // CONTROLLED HACKING (MAX 5%)
-            let hackThreads = Math.floor(ns.hackAnalyzeThreads(target, tCur * 0.05));
-
-            if (hackThreads < 1) hackThreads = 1;
-            if (hackThreads > threads) hackThreads = threads;
-
-            ns.exec("hack.js", host, hackThreads, target);
-
-            let remaining = threads - hackThreads;
-
-            if (remaining > 0) {
-                ns.exec("weaken.js", host, remaining, target);
-            }
+            ns.exec(script, host, threads, target);
         }
 
-        // Dashboard in Log Window
         ns.clearLog();
-        ns.print(`--- TITAN RUNNING ---`);
-        ns.print(`TARGETS:      ${targets.length}`);
-        ns.print(`----------------------------------`);
-        ns.print(`NETWORK RAM:  ${ns.formatRam(totalUsedRam)} / ${ns.formatRam(totalMaxRam)}`);
-        ns.print(`ROOT ACCESS:  ${rootServers.length}`);
+        ns.print("--- TITAN SOLO RUNNING ---");
+        ns.print(`Best Target:   ${bestTarget ?? "none"}`);
+        ns.print(`Root Access:   ${rooted} / ${allServers.length}`);
+        ns.print(`Usable Hosts:  ${usableHosts}`);
+        ns.print(`Network RAM:   ${ns.formatRam(totalUsedRam)} / ${ns.formatRam(totalMaxRam)}`);
+        ns.print("--------------------------------");
+        ns.print(`Hack Jobs:     ${actions.hack}`);
+        ns.print(`Grow Jobs:     ${actions.grow}`);
+        ns.print(`Weaken Jobs:   ${actions.weaken}`);
 
-        await ns.sleep(BUFFER);
+        await ns.sleep(LOOP_DELAY);
     }
 }
